@@ -62,16 +62,16 @@ class AnnotationApp {
 
     createToolbar() {
         this.masterAnnotationToggleBtn = this._createStyledButton('masterAnnotationToggleBtn', 'NOTE - enable/disable', 'NOTE ✏️', '');
-        this.masterAnnotationToggleBtn.style.top = '20px'; // تنظیم قبلی شما
-        this.masterAnnotationToggleBtn.style.right = '20px'; // تنظیم قبلی شما
+        this.masterAnnotationToggleBtn.style.top = '5px'; // تنظیم قبلی شما
+        this.masterAnnotationToggleBtn.style.right = '5px'; // تنظیم قبلی شما
         this.targetContainer.appendChild(this.masterAnnotationToggleBtn);
 
         this.toolsPanel = document.createElement('div'); 
         this.toolsPanel.id = 'annotationToolsPanel';
         this.toolsPanel.style.display = 'none';
         this.toolsPanel.style.flexDirection = 'column';
-        this.toolsPanel.style.top = '70px'; // تنظیم قبلی شما
-        this.toolsPanel.style.right = '20px'; // تنظیم قبلی شما
+        this.toolsPanel.style.top = '50px'; // تنظیم قبلی شما
+        this.toolsPanel.style.right = '5px'; // تنظیم قبلی شما
 
 
 
