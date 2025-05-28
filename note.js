@@ -10,17 +10,27 @@ class AnnotationApp {
             this.targetContainer.style.position = 'relative';
         }
 
-        this.canvas = null; this.ctx = null; this.isDrawing = false; this.noteModeActive = false;
-        this.currentTool = 'pen';
-        this.penColor = '#000000'; this.penLineWidth = 3;
-        this.highlighterColor = '#FFFF00'; this.highlighterLineWidth = 20; this.highlighterOpacity = 0.4;
-        this.eraserWidth = 15;
-        this.currentPath = null; this.drawings = [];
+        // Visible canvas
+        this.canvas = null;
+        this.ctx = null;
+        
+        // Offscreen canvas for committed drawings
+        this.committedCanvas = null;
+        this.committedCtx = null;
 
-        // **تغییر جدید: ایجاد کلید منحصر به فرد برای localStorage**
-        const baseStorageKey = 'pageAnnotations'; // یک نام پایه برای کلیدها
-        // استفاده از pathname برای منحصر به فرد کردن کلید برای هر صفحه
-        // می‌توان کاراکترهای خاص را جایگزین کرد تا از بروز مشکل در نام کلید جلوگیری شود
+        this.isDrawing = false;
+        this.noteModeActive = false;
+        this.currentTool = 'pen';
+        this.penColor = '#000000';
+        this.penLineWidth = 3;
+        this.highlighterColor = '#FFFF00';
+        this.highlighterLineWidth = 20;
+        this.highlighterOpacity = 0.4;
+        this.eraserWidth = 15;
+        this.currentPath = null;
+        this.drawings = [];
+
+        const baseStorageKey = 'pageAnnotations';
         const pageIdentifier = window.location.pathname.replace(/[^a-zA-Z0-9_-]/g, '_');
         this.storageKey = `${baseStorageKey}_${pageIdentifier}`;
 
@@ -36,19 +46,24 @@ class AnnotationApp {
     }
 
     init() {
-        this.createCanvas();
+        this.createCanvases(); // Changed from createCanvas
         this.createToolbar();
         this.addEventListeners();
-        this.loadDrawings(); // بارگذاری با کلید منحصر به فرد
-        this.resizeCanvas();
+        this.loadDrawings();
+        this.resizeCanvases(); // Changed from resizeCanvas
         this.selectTool('pen');
     }
 
-    createCanvas() {
+    createCanvases() { // Renamed and updated
+        // Visible canvas
         this.canvas = document.createElement('canvas'); 
         this.canvas.id = 'annotationCanvas';
         this.targetContainer.appendChild(this.canvas); 
         this.ctx = this.canvas.getContext('2d');
+
+        // Offscreen canvas
+        this.committedCanvas = document.createElement('canvas');
+        this.committedCtx = this.committedCanvas.getContext('2d');
     }
 
     _createStyledButton(id, title, innerHTML, className = 'tool-button') {
@@ -62,18 +77,16 @@ class AnnotationApp {
 
     createToolbar() {
         this.masterAnnotationToggleBtn = this._createStyledButton('masterAnnotationToggleBtn', 'NOTE - enable/disable', 'NOTE ✏️', '');
-        this.masterAnnotationToggleBtn.style.top = '5px'; // تنظیم قبلی شما
-        this.masterAnnotationToggleBtn.style.right = '5px'; // تنظیم قبلی شما
+        this.masterAnnotationToggleBtn.style.top = '5px'; 
+        this.masterAnnotationToggleBtn.style.right = '5px'; 
         this.targetContainer.appendChild(this.masterAnnotationToggleBtn);
 
         this.toolsPanel = document.createElement('div'); 
         this.toolsPanel.id = 'annotationToolsPanel';
         this.toolsPanel.style.display = 'none';
         this.toolsPanel.style.flexDirection = 'column';
-        this.toolsPanel.style.top = '50px'; // تنظیم قبلی شما
-        this.toolsPanel.style.right = '5px'; // تنظیم قبلی شما
-
-
+        this.toolsPanel.style.top = '50px'; 
+        this.toolsPanel.style.right = '5px'; 
 
         const toolsGroup = document.createElement('div'); 
         toolsGroup.className = 'toolbar-group';
@@ -123,16 +136,18 @@ class AnnotationApp {
     }
     
     updateToolSettingsVisibility() {
-        if (document.getElementById('penSettingsGroup')) {
-             document.getElementById('penSettingsGroup').style.display = (this.currentTool === 'pen' && this.noteModeActive) ? 'flex' : 'none';
+        const penSettings = document.getElementById('penSettingsGroup');
+        const highlighterSettings = document.getElementById('highlighterSettingsGroup');
+        if (penSettings) {
+            penSettings.style.display = (this.currentTool === 'pen' && this.noteModeActive) ? 'flex' : 'none';
         }
-        if (document.getElementById('highlighterSettingsGroup')) {
-            document.getElementById('highlighterSettingsGroup').style.display = (this.currentTool === 'highlighter' && this.noteModeActive) ? 'flex' : 'none';
+        if (highlighterSettings) {
+            highlighterSettings.style.display = (this.currentTool === 'highlighter' && this.noteModeActive) ? 'flex' : 'none';
         }
     }
 
     addEventListeners() {
-        window.addEventListener('resize', () => this.resizeCanvas());
+        window.addEventListener('resize', () => this.resizeCanvases()); // Changed
         
         this.canvas.addEventListener('touchstart', (e) => this.handleStart(e), { passive: false });
         this.canvas.addEventListener('touchmove', (e) => this.handleMove(e), { passive: false });
@@ -161,22 +176,24 @@ class AnnotationApp {
         this.noteModeActive = !this.noteModeActive;
         if (this.noteModeActive) {
             this.canvas.style.pointerEvents = 'auto';
-            document.body.classList.remove('annotation-active');
-            this.targetContainer.classList.remove('annotation-active');
-            this.masterAnnotationToggleBtn.textContent = 'NOTE ✏️';
-            this.masterAnnotationToggleBtn.classList.remove('active');
+            // Corrected logic: add class when active
+            document.body.classList.add('annotation-active');
+            this.targetContainer.classList.add('annotation-active');
+            this.masterAnnotationToggleBtn.textContent = 'NOTE ✏️ (فعال)'; // Updated text
+            this.masterAnnotationToggleBtn.classList.add('active');
             this.toolsPanel.style.display = 'flex';
             if (!this.currentTool) this.selectTool('pen');
         } else {
             this.canvas.style.pointerEvents = 'none';
-            document.body.classList.add('annotation-active');
-            this.targetContainer.classList.add('annotation-active');
-            this.masterAnnotationToggleBtn.textContent = 'NOTE ✏️';
-            this.masterAnnotationToggleBtn.classList.add('active');
+            // Corrected logic: remove class when inactive
+            document.body.classList.remove('annotation-active');
+            this.targetContainer.classList.remove('annotation-active');
+            this.masterAnnotationToggleBtn.textContent = 'NOTE ✏️'; // Updated text
+            this.masterAnnotationToggleBtn.classList.remove('active');
             this.toolsPanel.style.display = 'none';
             this.isDrawing = false; 
             this.currentPath = null; 
-            this.renderCanvas();
+            this.renderVisibleCanvas(); // Update visible canvas
         }
         this.updateToolSettingsVisibility();
     }
@@ -217,8 +234,10 @@ class AnnotationApp {
         if (!this.isDrawing || !this.noteModeActive || (event.touches && event.touches.length > 1)) return;
         event.preventDefault();
         const { x, y } = this.getEventCoordinates(event);
-        this.currentPath.points.push({ x, y });
-        this.renderCanvas();
+        if (this.currentPath) { // Ensure currentPath is not null
+            this.currentPath.points.push({ x, y });
+            this.renderVisibleCanvas(); // Optimized: only render visible canvas during move
+        }
     }
 
     handleEnd(mouseLeftCanvas = false) {
@@ -231,10 +250,11 @@ class AnnotationApp {
                 } else { 
                     this.drawings.push(this.currentPath); 
                 }
-                this.saveDrawings(); // ** استفاده از کلید منحصر به فرد **
+                this.redrawCommittedDrawings(); // Update the offscreen canvas
+                this.saveDrawings();
             }
             this.currentPath = null; 
-            this.renderCanvas();
+            this.renderVisibleCanvas(); // Update visible canvas to clear temporary path
         }
     }
 
@@ -260,44 +280,71 @@ class AnnotationApp {
         }
     }
 
-    resizeCanvas() {
-        this.canvas.width = this.targetContainer.scrollWidth; 
-        this.canvas.height = this.targetContainer.scrollHeight;
-        this.canvas.style.width = `${this.targetContainer.scrollWidth}px`; 
-        this.canvas.style.height = `${this.targetContainer.scrollHeight}px`;
-        this.renderCanvas();
+    resizeCanvases() { // Renamed and updated
+        const width = this.targetContainer.scrollWidth;
+        const height = this.targetContainer.scrollHeight;
+
+        this.canvas.width = width; 
+        this.canvas.height = height;
+        this.canvas.style.width = `${width}px`; 
+        this.canvas.style.height = `${height}px`;
+
+        this.committedCanvas.width = width;
+        this.committedCanvas.height = height;
+        
+        this.redrawCommittedDrawings();
+        this.renderVisibleCanvas();
     }
 
-    renderCanvas() {
+    // Draws all committed paths onto the offscreen canvas
+    redrawCommittedDrawings() {
+        this.committedCtx.clearRect(0, 0, this.committedCanvas.width, this.committedCanvas.height);
+        this.drawings.forEach(path => {
+            this._drawSinglePath(path, this.committedCtx);
+        });
+    }
+
+    // Renders the visible canvas by drawing the offscreen canvas and then the current path
+    renderVisibleCanvas() {
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        this.drawings.forEach(path => this.drawPath(path));
+        // Draw committed drawings from offscreen canvas
+        if (this.committedCanvas.width > 0 && this.committedCanvas.height > 0) {
+            this.ctx.drawImage(this.committedCanvas, 0, 0);
+        }
+        // Draw current path being drawn
         if (this.currentPath && this.isDrawing) {
-             this.drawPath(this.currentPath);
+            this._drawSinglePath(this.currentPath, this.ctx);
         }
     }
-
-    drawPath(path) {
+    
+    // Helper function to draw a single path on a given context
+    _drawSinglePath(path, context) {
         if (!path || path.points.length === 0) return;
-        this.ctx.beginPath(); 
-        this.ctx.lineCap = 'round'; 
-        this.ctx.lineJoin = 'round';
+        
+        context.beginPath(); 
+        context.lineCap = 'round'; 
+        context.lineJoin = 'round';
+
         if (path.tool === 'eraser' && this.isDrawing && path === this.currentPath) { 
-            this.ctx.strokeStyle = 'rgba(200, 0, 0, 0.6)'; 
-            this.ctx.lineWidth = 2; 
-            this.ctx.globalAlpha = 0.6;
+            context.strokeStyle = 'rgba(200, 0, 0, 0.6)'; 
+            context.lineWidth = 2; 
+            context.globalAlpha = 0.6;
         } else if (path.tool !== 'eraser') { 
-            this.ctx.strokeStyle = path.color; 
-            this.ctx.lineWidth = path.lineWidth; 
-            this.ctx.globalAlpha = path.opacity;
+            context.strokeStyle = path.color; 
+            context.lineWidth = path.lineWidth; 
+            context.globalAlpha = path.opacity;
         } else { 
-            return; 
+            return; // Do not draw committed eraser paths
         }
-        this.ctx.moveTo(path.points[0].x, path.points[0].y);
-        for (let i = 1; i < path.points.length; i++) {
-            this.ctx.lineTo(path.points[i].x, path.points[i].y);
+        
+        if (path.points.length > 0) {
+            context.moveTo(path.points[0].x, path.points[0].y);
+            for (let i = 1; i < path.points.length; i++) {
+                context.lineTo(path.points[i].x, path.points[i].y);
+            }
+            context.stroke();
         }
-        this.ctx.stroke(); 
-        this.ctx.globalAlpha = 1.0;
+        context.globalAlpha = 1.0; // Reset globalAlpha
     }
 
     selectTool(toolName) {
@@ -319,15 +366,16 @@ class AnnotationApp {
     clearAnnotations() {
         if (confirm('آیا مطمئن هستید که می‌خواهید تمام یادداشت‌ها و هایلایت‌ها را پاک کنید؟')) {
             this.drawings = []; 
-            localStorage.removeItem(this.storageKey); // ** استفاده از کلید منحصر به فرد **
-            this.renderCanvas();
+            localStorage.removeItem(this.storageKey);
+            this.redrawCommittedDrawings(); // Update offscreen canvas
+            this.renderVisibleCanvas();   // Update visible canvas
         }
     }
 
     saveDrawings() {
         try { 
             const drawingsToSave = this.drawings.filter(path => path.tool !== 'eraser');
-            localStorage.setItem(this.storageKey, JSON.stringify(drawingsToSave)); // ** استفاده از کلید منحصر به فرد **
+            localStorage.setItem(this.storageKey, JSON.stringify(drawingsToSave));
         }
         catch (error) { 
             console.error("AnnotationApp: Failed to save drawings:", error); 
@@ -336,7 +384,7 @@ class AnnotationApp {
     }
 
     loadDrawings() {
-        const savedData = localStorage.getItem(this.storageKey); // ** استفاده از کلید منحصر به فرد **
+        const savedData = localStorage.getItem(this.storageKey);
         if (savedData) {
             try {
                 this.drawings = JSON.parse(savedData); 
@@ -346,11 +394,15 @@ class AnnotationApp {
                                      (path.tool === 'pen' ? this.penLineWidth : 
                                      (path.tool === 'highlighter' ? this.highlighterLineWidth : this.eraserWidth));
                 });
-                this.renderCanvas();
             } catch (error) { 
                 console.error("AnnotationApp: Failed to parse drawings from localStorage:", error); 
-                localStorage.removeItem(this.storageKey); // ** استفاده از کلید منحصر به فرد **
+                this.drawings = []; // Clear drawings if parsing failed
+                localStorage.removeItem(this.storageKey);
             }
+        } else {
+            this.drawings = []; // Ensure drawings is an empty array if no saved data
         }
+        this.redrawCommittedDrawings(); // Update offscreen canvas
+        this.renderVisibleCanvas();   // Update visible canvas
     }
 }
