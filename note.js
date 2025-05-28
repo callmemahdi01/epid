@@ -30,6 +30,9 @@ class AnnotationApp {
         this.currentPath = null;
         this.drawings = [];
 
+        // For requestAnimationFrame
+        this.animationFrameRequestId = null;
+
         const baseStorageKey = 'pageAnnotations';
         const pageIdentifier = window.location.pathname.replace(/[^a-zA-Z0-9_-]/g, '_');
         this.storageKey = `${baseStorageKey}_${pageIdentifier}`;
@@ -46,22 +49,20 @@ class AnnotationApp {
     }
 
     init() {
-        this.createCanvases(); // Changed from createCanvas
+        this.createCanvases();
         this.createToolbar();
         this.addEventListeners();
         this.loadDrawings();
-        this.resizeCanvases(); // Changed from resizeCanvas
+        this.resizeCanvases();
         this.selectTool('pen');
     }
 
-    createCanvases() { // Renamed and updated
-        // Visible canvas
+    createCanvases() {
         this.canvas = document.createElement('canvas'); 
         this.canvas.id = 'annotationCanvas';
         this.targetContainer.appendChild(this.canvas); 
         this.ctx = this.canvas.getContext('2d');
 
-        // Offscreen canvas
         this.committedCanvas = document.createElement('canvas');
         this.committedCtx = this.committedCanvas.getContext('2d');
     }
@@ -147,7 +148,7 @@ class AnnotationApp {
     }
 
     addEventListeners() {
-        window.addEventListener('resize', () => this.resizeCanvases()); // Changed
+        window.addEventListener('resize', () => this.resizeCanvases());
         
         this.canvas.addEventListener('touchstart', (e) => this.handleStart(e), { passive: false });
         this.canvas.addEventListener('touchmove', (e) => this.handleMove(e), { passive: false });
@@ -176,24 +177,26 @@ class AnnotationApp {
         this.noteModeActive = !this.noteModeActive;
         if (this.noteModeActive) {
             this.canvas.style.pointerEvents = 'auto';
-            // Corrected logic: add class when active
-            document.body.classList.add('annotation-active');
-            this.targetContainer.classList.add('annotation-active');
-            this.masterAnnotationToggleBtn.textContent = 'NOTE ✏️ (فعال)'; // Updated text
-            this.masterAnnotationToggleBtn.classList.add('active');
+            document.body.classList.add('annotation-active'); // Correct: Add class when active
+            this.targetContainer.classList.add('annotation-active'); // Correct: Add class when active
+            this.masterAnnotationToggleBtn.textContent = 'NOTE ✏️ (فعال)'; // Indicates action to disable
+            this.masterAnnotationToggleBtn.classList.add('active'); // Visually show it's active
             this.toolsPanel.style.display = 'flex';
             if (!this.currentTool) this.selectTool('pen');
         } else {
             this.canvas.style.pointerEvents = 'none';
-            // Corrected logic: remove class when inactive
-            document.body.classList.remove('annotation-active');
-            this.targetContainer.classList.remove('annotation-active');
-            this.masterAnnotationToggleBtn.textContent = 'NOTE ✏️'; // Updated text
-            this.masterAnnotationToggleBtn.classList.remove('active');
+            document.body.classList.remove('annotation-active'); // Correct: Remove class when inactive
+            this.targetContainer.classList.remove('annotation-active'); // Correct: Remove class when inactive
+            this.masterAnnotationToggleBtn.textContent = 'NOTE ✏️ (غیرفعال)'; // Indicates action to enable
+            this.masterAnnotationToggleBtn.classList.remove('active'); // Visually show it's inactive
             this.toolsPanel.style.display = 'none';
             this.isDrawing = false; 
             this.currentPath = null; 
-            this.renderVisibleCanvas(); // Update visible canvas
+            if (this.animationFrameRequestId !== null) { // Cancel any pending frame if disabling
+                cancelAnimationFrame(this.animationFrameRequestId);
+                this.animationFrameRequestId = null;
+            }
+            this.renderVisibleCanvas(); 
         }
         this.updateToolSettingsVisibility();
     }
@@ -234,13 +237,25 @@ class AnnotationApp {
         if (!this.isDrawing || !this.noteModeActive || (event.touches && event.touches.length > 1)) return;
         event.preventDefault();
         const { x, y } = this.getEventCoordinates(event);
-        if (this.currentPath) { // Ensure currentPath is not null
+        if (this.currentPath) {
             this.currentPath.points.push({ x, y });
-            this.renderVisibleCanvas(); // Optimized: only render visible canvas during move
+            // Schedule rendering with requestAnimationFrame
+            if (this.animationFrameRequestId === null) {
+                this.animationFrameRequestId = requestAnimationFrame(() => {
+                    this.renderVisibleCanvas();
+                    this.animationFrameRequestId = null; // Reset for next frame
+                });
+            }
         }
     }
 
     handleEnd(mouseLeftCanvas = false) {
+        // Cancel any pending animation frame from handleMove
+        if (this.animationFrameRequestId !== null) {
+            cancelAnimationFrame(this.animationFrameRequestId);
+            this.animationFrameRequestId = null;
+        }
+
         if (mouseLeftCanvas && !this.isDrawing) return;
         if (this.isDrawing) {
             this.isDrawing = false;
@@ -250,11 +265,12 @@ class AnnotationApp {
                 } else { 
                     this.drawings.push(this.currentPath); 
                 }
-                this.redrawCommittedDrawings(); // Update the offscreen canvas
+                this.redrawCommittedDrawings();
                 this.saveDrawings();
             }
             this.currentPath = null; 
-            this.renderVisibleCanvas(); // Update visible canvas to clear temporary path
+            // Ensure final state is rendered immediately after drawing ends
+            this.renderVisibleCanvas(); 
         }
     }
 
@@ -280,7 +296,7 @@ class AnnotationApp {
         }
     }
 
-    resizeCanvases() { // Renamed and updated
+    resizeCanvases() {
         const width = this.targetContainer.scrollWidth;
         const height = this.targetContainer.scrollHeight;
 
@@ -296,7 +312,6 @@ class AnnotationApp {
         this.renderVisibleCanvas();
     }
 
-    // Draws all committed paths onto the offscreen canvas
     redrawCommittedDrawings() {
         this.committedCtx.clearRect(0, 0, this.committedCanvas.width, this.committedCanvas.height);
         this.drawings.forEach(path => {
@@ -304,20 +319,16 @@ class AnnotationApp {
         });
     }
 
-    // Renders the visible canvas by drawing the offscreen canvas and then the current path
     renderVisibleCanvas() {
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        // Draw committed drawings from offscreen canvas
         if (this.committedCanvas.width > 0 && this.committedCanvas.height > 0) {
             this.ctx.drawImage(this.committedCanvas, 0, 0);
         }
-        // Draw current path being drawn
-        if (this.currentPath && this.isDrawing) {
+        if (this.currentPath && this.isDrawing) { // Only draw currentPath if actively drawing
             this._drawSinglePath(this.currentPath, this.ctx);
         }
     }
     
-    // Helper function to draw a single path on a given context
     _drawSinglePath(path, context) {
         if (!path || path.points.length === 0) return;
         
@@ -334,7 +345,7 @@ class AnnotationApp {
             context.lineWidth = path.lineWidth; 
             context.globalAlpha = path.opacity;
         } else { 
-            return; // Do not draw committed eraser paths
+            return; 
         }
         
         if (path.points.length > 0) {
@@ -344,7 +355,7 @@ class AnnotationApp {
             }
             context.stroke();
         }
-        context.globalAlpha = 1.0; // Reset globalAlpha
+        context.globalAlpha = 1.0;
     }
 
     selectTool(toolName) {
@@ -367,8 +378,8 @@ class AnnotationApp {
         if (confirm('آیا مطمئن هستید که می‌خواهید تمام یادداشت‌ها و هایلایت‌ها را پاک کنید؟')) {
             this.drawings = []; 
             localStorage.removeItem(this.storageKey);
-            this.redrawCommittedDrawings(); // Update offscreen canvas
-            this.renderVisibleCanvas();   // Update visible canvas
+            this.redrawCommittedDrawings();
+            this.renderVisibleCanvas();
         }
     }
 
@@ -396,13 +407,13 @@ class AnnotationApp {
                 });
             } catch (error) { 
                 console.error("AnnotationApp: Failed to parse drawings from localStorage:", error); 
-                this.drawings = []; // Clear drawings if parsing failed
+                this.drawings = [];
                 localStorage.removeItem(this.storageKey);
             }
         } else {
-            this.drawings = []; // Ensure drawings is an empty array if no saved data
+            this.drawings = [];
         }
-        this.redrawCommittedDrawings(); // Update offscreen canvas
-        this.renderVisibleCanvas();   // Update visible canvas
+        this.redrawCommittedDrawings();
+        this.renderVisibleCanvas();
     }
 }
