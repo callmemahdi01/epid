@@ -94,7 +94,7 @@ class AnnotationApp {
         this.toolsPanel.id = 'annotationToolsPanel';
         this.toolsPanel.style.display = 'none'; // Original style
         this.toolsPanel.style.flexDirection = 'column'; // Original style
-        this.toolsPanel.style.top = '50px'; // Original style
+        this.toolsPanel.style.top = '45px'; // Original style
         this.toolsPanel.style.right = '5px'; // Original style
         // Removed: position, zIndex, backgroundColor, border, borderRadius, padding, boxShadow, gap
 
