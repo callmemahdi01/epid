@@ -73,7 +73,6 @@ body.annotation-active {
     display: flex;
     align-items: center;
     gap: 5px;
-    padding: px 0;
 }
 
 .tool-button {
@@ -108,7 +107,7 @@ body.annotation-active {
 }
 
 #annotationToolsPanel input[type="color"] {
-    width: 45px;
+    width: 43px;
     height: 30px;
     border: 1px solid rgba(206, 212, 218, 0.7);
     border-radius: 5px;
@@ -117,7 +116,7 @@ body.annotation-active {
     background-color: rgba(255,255,255,0.7); /* پس‌زمینه برای انتخابگر رنگ */
 }
 #annotationToolsPanel input[type="number"] {
-    width: 43px;
+    width: 30px;
     height: 27px;
     border: 1px solid rgba(206, 212, 218, 0.7);
     border-radius: 5px;
