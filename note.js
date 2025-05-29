@@ -43,6 +43,11 @@ class AnnotationApp {
         this.modalMessage = document.getElementById('customModalMessage');
         this.modalButtonsContainer = document.getElementById('customModalButtons');
 
+        this.isTwoFingerActive = false;
+        this.twoFingerTapData = null; 
+        this.TAP_DURATION_THRESHOLD = 300; 
+        this.TAP_MOVEMENT_THRESHOLD = 20;  
+
         if(this.targetContainer) {
             this.init();
         }
@@ -193,15 +198,15 @@ class AnnotationApp {
     addEventListeners() {
         window.addEventListener('resize', () => this.resizeCanvases());
 
-        this.canvas.addEventListener('touchstart', (e) => this.handleStart(e), { passive: false });
-        this.canvas.addEventListener('touchmove', (e) => this.handleMove(e), { passive: false });
-        this.canvas.addEventListener('touchend', () => this.handleEnd());
-        this.canvas.addEventListener('touchcancel', () => this.handleEnd());
+        this.canvas.addEventListener('touchstart', this.handleTouchStart.bind(this), { passive: false });
+        this.canvas.addEventListener('touchmove', this.handleTouchMove.bind(this), { passive: false });
+        this.canvas.addEventListener('touchend', this.handleTouchEnd.bind(this));
+        this.canvas.addEventListener('touchcancel', this.handleTouchEnd.bind(this));
 
-        this.canvas.addEventListener('mousedown', (e) => this.handleStart(e));
-        this.canvas.addEventListener('mousemove', (e) => this.handleMove(e));
-        this.canvas.addEventListener('mouseup', () => this.handleEnd());
-        this.canvas.addEventListener('mouseleave', () => this.handleEnd(true)); 
+        this.canvas.addEventListener('mousedown', this.handleMouseDown.bind(this));
+        this.canvas.addEventListener('mousemove', this.handleMouseMove.bind(this));
+        this.canvas.addEventListener('mouseup', this.handleMouseUp.bind(this));
+        this.canvas.addEventListener('mouseleave', this.handleMouseLeave.bind(this));
 
         this.masterAnnotationToggleBtn.addEventListener('click', () => this.toggleMasterAnnotationMode());
         this.penBtn.addEventListener('click', () => this.selectTool('pen'));
@@ -234,118 +239,196 @@ class AnnotationApp {
             this.toolsPanel.style.display = 'none';
             this.isDrawing = false;
             this.currentPath = null;
-            if (this.animationFrameRequestId !== null) {
-                cancelAnimationFrame(this.animationFrameRequestId);
-                this.animationFrameRequestId = null;
-            }
+            this.isTwoFingerActive = false; 
+            this.twoFingerTapData = null;
+            this.cancelRenderVisibleCanvas();
             this.renderVisibleCanvas(); 
         }
         this.updateToolSettingsVisibility();
     }
 
-    getEventCoordinates(event) {
+    getEventCoordinates(e) {
         let x, y;
         const rect = this.canvas.getBoundingClientRect();
-        if (event.touches && event.touches.length > 0) {
-            if (typeof event.touches[0].clientX !== 'undefined') {
-                 x = event.touches[0].clientX - rect.left;
-                 y = event.touches[0].clientY - rect.top;
-            } else { 
-                 x = event.touches[0].pageX - rect.left - window.scrollX;
-                 y = event.touches[0].pageY - rect.top - window.scrollY;
-            }
+        let source = e;
+
+        if (e.touches && e.touches.length > 0) {
+            source = e.touches[0];
+        }
+    
+        if (typeof source.clientX === 'number' && typeof source.clientY === 'number') {
+            x = source.clientX - rect.left;
+            y = source.clientY - rect.top;
         } else {
-            x = event.clientX - rect.left;
-            y = event.clientY - rect.top;
+            return { x: 0, y: 0 }; 
         }
         return { x, y };
     }
 
-    handleStart(event) {
-        if (!this.noteModeActive || (event.button && event.button !== 0) || (event.touches && event.touches.length > 1)) return; 
-        event.preventDefault(); 
-        this.isDrawing = true;
-        const { x, y } = this.getEventCoordinates(event);
+    getCurrentToolProperties() {
+        if (this.currentTool === 'pen') return { color: this.penColor, lineWidth: this.penLineWidth, opacity: 1.0 };
+        if (this.currentTool === 'highlighter') return { color: this.highlighterColor, lineWidth: this.highlighterLineWidth, opacity: this.highlighterOpacity };
+        if (this.currentTool === 'eraser') return { lineWidth: this.eraserWidth };
+        return {};
+    }
 
-        this.currentPath = { tool: this.currentTool, points: [{ x, y }] };
-
-        if (this.currentTool === 'pen') {
-            this.currentPath.color = this.penColor;
-            this.currentPath.lineWidth = this.penLineWidth;
-            this.currentPath.opacity = 1.0;
-        } else if (this.currentTool === 'highlighter') {
-            this.currentPath.color = this.highlighterColor;
-            this.currentPath.lineWidth = this.highlighterLineWidth;
-            this.currentPath.opacity = this.highlighterOpacity;
-        } else if (this.currentTool === 'eraser') {
-            this.currentPath.lineWidth = this.eraserWidth; 
+    addPointToCurrentPath(x, y) {
+        if (!this.currentPath) return;
+        if (this.currentTool === 'highlighter') {
+            if (this.currentPath.points.length <= 1) this.currentPath.points.push({ x, y });
+            else this.currentPath.points[1] = { x, y };
+        } else {
+            this.currentPath.points.push({ x, y });
         }
     }
 
-    handleMove(event) {
-        if (!this.isDrawing || !this.noteModeActive || (event.touches && event.touches.length > 1)) return;
-        event.preventDefault();
-        const { x, y } = this.getEventCoordinates(event);
-
-        if (this.currentPath) {
-            if (this.currentTool === 'highlighter') {
-                if (this.currentPath.points.length <= 1) {
-                    this.currentPath.points.push({ x, y });
-                } else {
-                    this.currentPath.points[1] = { x, y }; 
-                }
-            } else { 
-                this.currentPath.points.push({ x, y });
-            }
-
-            if (this.animationFrameRequestId === null) {
-                this.animationFrameRequestId = requestAnimationFrame(() => {
-                    this.renderVisibleCanvas();
-                    this.animationFrameRequestId = null;
-                });
-            }
+    requestRenderVisibleCanvas() {
+        if (this.animationFrameRequestId === null) {
+            this.animationFrameRequestId = requestAnimationFrame(() => {
+                this.renderVisibleCanvas();
+                this.animationFrameRequestId = null;
+            });
         }
     }
 
-    handleEnd(mouseLeftCanvas = false) {
+    cancelRenderVisibleCanvas() {
         if (this.animationFrameRequestId !== null) {
             cancelAnimationFrame(this.animationFrameRequestId);
             this.animationFrameRequestId = null;
         }
+    }
 
-        if (mouseLeftCanvas && !this.isDrawing && this.currentTool !== 'eraser') { 
-            if (this.currentPath) {
-                this.currentPath = null;
-                this.renderVisibleCanvas(); 
-            }
-            return;
-        }
+    commitCurrentPath(isMouseLeave = false) {
+        this.cancelRenderVisibleCanvas();
+        if (isMouseLeave && !this.isDrawing) return;
 
         if (this.isDrawing) {
-            this.isDrawing = false;
+            this.isDrawing = false; 
             if (this.currentPath && this.currentPath.points.length > 0) {
                 if (this.currentTool === 'highlighter') {
                     const startPoint = this.currentPath.points[0];
                     const endPoint = this.currentPath.points.length > 1 ? this.currentPath.points[1] : startPoint;
                     this.currentPath.points = [startPoint, endPoint];
-                    
-                    this.currentPath.color = this.highlighterColor;
-                    this.currentPath.lineWidth = this.highlighterLineWidth;
-                    this.currentPath.opacity = this.highlighterOpacity;
-                    this.drawings.push(this.currentPath);
-
-                } else if (this.currentTool === 'eraser') {
-                    this.eraseStrokes(); 
-                } else { 
-                    if (this.currentPath.points.length > 1) { 
-                        this.drawings.push(this.currentPath);
-                    }
                 }
-                this.redrawCommittedDrawings(); 
+                if (this.currentTool === 'eraser') {
+                    this.eraseStrokes(); 
+                } else if (this.currentTool === 'pen' && this.currentPath.points.length <= 1) {
+                    // No single click for pen
+                } else if (this.currentPath.tool !== 'eraser') { 
+                     this.drawings.push(this.currentPath);
+                }
+                this.redrawCommittedDrawings();
                 this.saveDrawings();
             }
-            this.currentPath = null; 
+        }
+        this.currentPath = null;
+        this.renderVisibleCanvas(); 
+    }
+    
+    handleTouchStart(event) {
+        if (!this.noteModeActive) return;
+        if (event.touches.length === 2) {
+            this.isTwoFingerActive = true;
+            this.isDrawing = false; 
+            this.currentPath = null;
+            this.twoFingerTapData = {
+                startTime: Date.now(),
+                initialPoints: Array.from(event.touches).map(t => ({ clientX: t.clientX, clientY: t.clientY }))
+            };
+        } else if (event.touches.length === 1 && !this.isTwoFingerActive) {
+            event.preventDefault(); 
+            this.isDrawing = true;
+            const { x, y } = this.getEventCoordinates(event.touches[0]);
+            this.currentPath = { tool: this.currentTool, points: [{ x, y }], ...this.getCurrentToolProperties() };
+        } else if (event.touches.length > 2) {
+            this.isTwoFingerActive = true; 
+            this.isDrawing = false;
+            this.currentPath = null;
+        }
+    }
+
+    handleTouchMove(event) {
+        if (!this.noteModeActive) return;
+        if (this.isTwoFingerActive && event.touches.length === 2) {
+            if (this.twoFingerTapData) {
+                const currentPoints = Array.from(event.touches).map(t => ({ clientX: t.clientX, clientY: t.clientY }));
+                const p0 = this.twoFingerTapData.initialPoints[0];
+                const p1 = this.twoFingerTapData.initialPoints[1];
+                const c0 = currentPoints[0];
+                const c1 = currentPoints[1];
+                if (Math.hypot(c0.clientX - p0.clientX, c0.clientY - p0.clientY) > this.TAP_MOVEMENT_THRESHOLD ||
+                    Math.hypot(c1.clientX - p1.clientX, c1.clientY - p1.clientY) > this.TAP_MOVEMENT_THRESHOLD) {
+                    this.twoFingerTapData = null; 
+                }
+            }
+        } else if (this.isDrawing && !this.isTwoFingerActive && event.touches.length === 1) {
+            event.preventDefault();
+            const { x, y } = this.getEventCoordinates(event.touches[0]);
+            this.addPointToCurrentPath(x, y);
+            this.requestRenderVisibleCanvas();
+        }
+    }
+
+    handleTouchEnd(event) {
+        if (!this.noteModeActive) return;
+        if (this.isTwoFingerActive) {
+            if (this.twoFingerTapData && event.touches.length === 0) { 
+                const duration = Date.now() - this.twoFingerTapData.startTime;
+                if (duration < this.TAP_DURATION_THRESHOLD) { 
+                    this.undoLastDrawing();
+                }
+            }
+            if (event.touches.length < 2) { // Reset if no longer two fingers
+                this.isTwoFingerActive = false;
+                this.twoFingerTapData = null;
+            }
+            this.isDrawing = false; 
+            this.currentPath = null;
+            this.cancelRenderVisibleCanvas();
             this.renderVisibleCanvas(); 
+            return; 
+        }
+
+        if (this.isDrawing) {
+          this.commitCurrentPath();
+        } else if (this.currentPath) { 
+            this.currentPath = null; 
+            this.renderVisibleCanvas();
+        }
+    }
+
+    handleMouseDown(event) {
+        if (this.isTwoFingerActive || !this.noteModeActive || (event.button && event.button !== 0)) return;
+        event.preventDefault(); // Prevent text selection, etc.
+        this.isDrawing = true;
+        const { x, y } = this.getEventCoordinates(event);
+        this.currentPath = { tool: this.currentTool, points: [{ x, y }], ...this.getCurrentToolProperties() };
+    }
+
+    handleMouseMove(event) {
+        if (!this.isDrawing || this.isTwoFingerActive || !this.noteModeActive) return;
+        event.preventDefault();
+        const { x, y } = this.getEventCoordinates(event);
+        this.addPointToCurrentPath(x,y);
+        this.requestRenderVisibleCanvas();
+    }
+
+    handleMouseUp() {
+        if (this.isTwoFingerActive) return; 
+        this.commitCurrentPath();
+    }
+
+    handleMouseLeave() {
+        if (this.isTwoFingerActive) return;
+        this.commitCurrentPath(true); 
+    }
+
+    undoLastDrawing() {
+        if (this.drawings.length > 0) {
+            this.drawings.pop();
+            this.redrawCommittedDrawings();
+            this.renderVisibleCanvas();
+            this.saveDrawings();
         }
     }
 
@@ -359,9 +442,6 @@ class AnnotationApp {
                 if (drawingsToDelete.has(drawing) || drawing.tool === 'eraser') continue; 
 
                 for (let j = 0; j < drawing.points.length -1; j++) {
-                    const p1 = drawing.points[j];
-                    const p2 = drawing.points[j+1];
-                    
                      for (const pathPoint of drawing.points) {
                         const distance = Math.sqrt(Math.pow(eraserPoint.x - pathPoint.x, 2) + Math.pow(eraserPoint.y - pathPoint.y, 2));
                         const collisionThreshold = (drawing.lineWidth / 2) + (this.eraserWidth / 2);
@@ -418,7 +498,7 @@ class AnnotationApp {
         if (this.committedCanvas.width > 0 && this.committedCanvas.height > 0) {
             this.ctx.drawImage(this.committedCanvas, 0, 0);
         }
-        if (this.currentPath && this.isDrawing) {
+        if (this.currentPath && this.isDrawing && !this.isTwoFingerActive) { // Only draw currentPath if drawing and not two-finger
             this._drawSinglePath(this.currentPath, this.ctx);
         }
     }
