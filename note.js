@@ -93,9 +93,9 @@ class AnnotationApp {
         this.toolsPanel = document.createElement('div');
         this.toolsPanel.id = 'annotationToolsPanel';
         this.toolsPanel.style.display = 'none'; // Original style
-        this.toolsPanel.style.flexDirection = 'column'; // Original style
-        this.toolsPanel.style.top = '50px'; // Original style
-        this.toolsPanel.style.right = '5px'; // Original style
+        this.toolsPanel.style.flexDirection = 'row'; // Original style
+        this.toolsPanel.style.top = '5px'; // Original style
+        this.toolsPanel.style.right = '140px'; // Original style
         // Removed: position, zIndex, backgroundColor, border, borderRadius, padding, boxShadow, gap
 
         const toolsGroup = document.createElement('div');
