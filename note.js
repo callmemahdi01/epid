@@ -39,9 +39,10 @@ class AnnotationApp {
             eraser: '<span class="material-symbols-outlined">ink_eraser</span>'
         };
         
-        this.modalOverlay = document.getElementById('customModalOverlay');
-        this.modalMessage = document.getElementById('customModalMessage');
-        this.modalButtonsContainer = document.getElementById('customModalButtons');
+        // ارجاع به عناصر مودال در اینجا تعریف می‌شود اما در _createModalDOM مقداردهی می‌شود
+        this.modalOverlay = null;
+        this.modalMessage = null;
+        this.modalButtonsContainer = null;
 
         this.isTwoFingerActive = false;
         this.twoFingerTapData = null; 
@@ -54,6 +55,7 @@ class AnnotationApp {
     }
 
     init() {
+        this._createModalDOM(); // ایجاد عناصر مودال به صورت پویا
         this.createCanvases();
         this.createToolbar();
         this.addEventListeners();
@@ -62,6 +64,33 @@ class AnnotationApp {
             this.resizeCanvases(); 
             this.selectTool('pen'); 
         });
+    }
+
+    _createModalDOM() {
+        // ایجاد پوشش مودال
+        this.modalOverlay = document.createElement('div');
+        this.modalOverlay.className = 'custom-modal-overlay';
+        this.modalOverlay.style.display = 'none'; // در ابتدا مخفی
+
+        // ایجاد دیالوگ مودال (محتوا)
+        const modalDialog = document.createElement('div');
+        modalDialog.className = 'custom-modal';
+
+        // ایجاد عنصر پیام مودال
+        this.modalMessage = document.createElement('div');
+        this.modalMessage.className = 'custom-modal-message';
+
+        // ایجاد نگهدارنده دکمه‌های مودال
+        this.modalButtonsContainer = document.createElement('div');
+        this.modalButtonsContainer.className = 'custom-modal-buttons';
+
+        // مونتاژ مودال
+        modalDialog.appendChild(this.modalMessage);
+        modalDialog.appendChild(this.modalButtonsContainer);
+        this.modalOverlay.appendChild(modalDialog);
+
+        // افزودن مودال به body سند
+        document.body.appendChild(this.modalOverlay);
     }
 
     createCanvases() {
@@ -89,7 +118,11 @@ class AnnotationApp {
         this.masterAnnotationToggleBtn = this._createStyledButton('masterAnnotationToggleBtn', 'NOTE - enable/disable', 'NOTE ✏️', ''); 
         this.masterAnnotationToggleBtn.style.top = '10px'; 
         this.masterAnnotationToggleBtn.style.right = '10px';
+        // اطمینان از اینکه targetContainer والد صحیح است
+        // اگر targetContainer کل صفحه نیست، شاید بهتر باشد دکمه اصلی و پنل ابزار به body اضافه شوند
+        // یا موقعیت آن‌ها نسبت به targetContainer تنظیم شود. در اینجا فرض بر این است که targetContainer مناسب است.
         this.targetContainer.appendChild(this.masterAnnotationToggleBtn);
+
 
         this.toolsPanel = document.createElement('div');
         this.toolsPanel.id = 'annotationToolsPanel';
@@ -97,7 +130,9 @@ class AnnotationApp {
         this.toolsPanel.style.flexDirection = 'column'; 
         this.toolsPanel.style.top = '55px'; 
         this.toolsPanel.style.right = '10px';
+        // استفاده از کلاس‌های Tailwind برای استایل‌دهی پنل ابزار
         this.toolsPanel.classList.add('p-2', 'rounded-md', 'shadow-lg', 'bg-white', 'border', 'border-gray-200', 'flex', 'flex-col', 'gap-2');
+
 
         const toolsGroup = document.createElement('div');
         toolsGroup.className = 'toolbar-group'; 
@@ -147,13 +182,21 @@ class AnnotationApp {
     }
     
     _showModal(message, buttonsConfig) {
+        // عناصر مودال اکنون به صورت پویا ایجاد شده‌اند و در this.modalOverlay و غیره ذخیره شده‌اند.
+        if (!this.modalOverlay || !this.modalMessage || !this.modalButtonsContainer) {
+            console.error("Modal elements were not created correctly.");
+            // شاید بخواهید در اینجا مودال را دوباره ایجاد کنید یا یک پیام خطا به کاربر نشان دهید
+            this._createModalDOM(); // سعی در ایجاد مجدد
+            if (!this.modalOverlay) return; // اگر باز هم ایجاد نشد، خارج شوید
+        }
         this.modalMessage.textContent = message;
-        this.modalButtonsContainer.innerHTML = ''; 
+        this.modalButtonsContainer.innerHTML = ''; // پاک کردن دکمه‌های قبلی
 
         buttonsConfig.forEach(config => {
             const button = document.createElement('button');
             button.textContent = config.text;
-            button.className = `custom-modal-button ${config.className}`;
+            // کلاس‌های CSS برای دکمه‌ها از فایل CSS شما اعمال می‌شوند
+            button.className = `custom-modal-button ${config.className}`; 
             button.addEventListener('click', () => {
                 this._hideModal();
                 if (config.callback) {
@@ -166,6 +209,7 @@ class AnnotationApp {
     }
 
     _hideModal() {
+        if (!this.modalOverlay) return;
         this.modalOverlay.style.display = 'none';
     }
 
@@ -185,7 +229,7 @@ class AnnotationApp {
     }
 
     updateToolSettingsVisibility() {
-        const penSettings = document.getElementById('penSettingsGroup');
+        const penSettings = document.getElementById('penSettingsGroup'); // اینها هنوز از طریق ID گرفته می‌شوند چون در createToolbar ایجاد می‌شوند
         const highlighterSettings = document.getElementById('highlighterSettingsGroup');
         if (penSettings) {
             penSettings.style.display = (this.currentTool === 'pen' && this.noteModeActive) ? 'flex' : 'none';
@@ -250,7 +294,7 @@ class AnnotationApp {
     getEventCoordinates(e) {
         let x, y;
         const rect = this.canvas.getBoundingClientRect();
-        let source = e;
+        let source = e; 
 
         if (e.touches && e.touches.length > 0) {
             source = e.touches[0];
@@ -313,9 +357,9 @@ class AnnotationApp {
                 if (this.currentTool === 'eraser') {
                     this.eraseStrokes(); 
                 } else if (this.currentTool === 'pen' && this.currentPath.points.length <= 1) {
-                    // No single click for pen
+                    // برای کلیک تکی با قلم کاری انجام نده
                 } else if (this.currentPath.tool !== 'eraser') { 
-                     this.drawings.push(this.currentPath);
+                    this.drawings.push(this.currentPath);
                 }
                 this.redrawCommittedDrawings();
                 this.saveDrawings();
@@ -327,10 +371,11 @@ class AnnotationApp {
     
     handleTouchStart(event) {
         if (!this.noteModeActive) return;
+
         if (event.touches.length === 2) {
             this.isTwoFingerActive = true;
             this.isDrawing = false; 
-            this.currentPath = null;
+            this.currentPath = null; 
             this.twoFingerTapData = {
                 startTime: Date.now(),
                 initialPoints: Array.from(event.touches).map(t => ({ clientX: t.clientX, clientY: t.clientY }))
@@ -349,6 +394,7 @@ class AnnotationApp {
 
     handleTouchMove(event) {
         if (!this.noteModeActive) return;
+
         if (this.isTwoFingerActive && event.touches.length === 2) {
             if (this.twoFingerTapData) {
                 const currentPoints = Array.from(event.touches).map(t => ({ clientX: t.clientX, clientY: t.clientY }));
@@ -356,13 +402,14 @@ class AnnotationApp {
                 const p1 = this.twoFingerTapData.initialPoints[1];
                 const c0 = currentPoints[0];
                 const c1 = currentPoints[1];
+
                 if (Math.hypot(c0.clientX - p0.clientX, c0.clientY - p0.clientY) > this.TAP_MOVEMENT_THRESHOLD ||
                     Math.hypot(c1.clientX - p1.clientX, c1.clientY - p1.clientY) > this.TAP_MOVEMENT_THRESHOLD) {
                     this.twoFingerTapData = null; 
                 }
             }
         } else if (this.isDrawing && !this.isTwoFingerActive && event.touches.length === 1) {
-            event.preventDefault();
+            event.preventDefault(); 
             const { x, y } = this.getEventCoordinates(event.touches[0]);
             this.addPointToCurrentPath(x, y);
             this.requestRenderVisibleCanvas();
@@ -371,6 +418,7 @@ class AnnotationApp {
 
     handleTouchEnd(event) {
         if (!this.noteModeActive) return;
+
         if (this.isTwoFingerActive) {
             if (this.twoFingerTapData && event.touches.length === 0) { 
                 const duration = Date.now() - this.twoFingerTapData.startTime;
@@ -378,7 +426,8 @@ class AnnotationApp {
                     this.undoLastDrawing();
                 }
             }
-            if (event.touches.length < 2) { // Reset if no longer two fingers
+            
+            if (event.touches.length < 2) { 
                 this.isTwoFingerActive = false;
                 this.twoFingerTapData = null;
             }
@@ -399,7 +448,7 @@ class AnnotationApp {
 
     handleMouseDown(event) {
         if (this.isTwoFingerActive || !this.noteModeActive || (event.button && event.button !== 0)) return;
-        event.preventDefault(); // Prevent text selection, etc.
+        event.preventDefault(); 
         this.isDrawing = true;
         const { x, y } = this.getEventCoordinates(event);
         this.currentPath = { tool: this.currentTool, points: [{ x, y }], ...this.getCurrentToolProperties() };
@@ -441,23 +490,12 @@ class AnnotationApp {
                 const drawing = this.drawings[i];
                 if (drawingsToDelete.has(drawing) || drawing.tool === 'eraser') continue; 
 
-                for (let j = 0; j < drawing.points.length -1; j++) {
-                     for (const pathPoint of drawing.points) {
-                        const distance = Math.sqrt(Math.pow(eraserPoint.x - pathPoint.x, 2) + Math.pow(eraserPoint.y - pathPoint.y, 2));
-                        const collisionThreshold = (drawing.lineWidth / 2) + (this.eraserWidth / 2);
-                        if (distance < collisionThreshold) {
-                            drawingsToDelete.add(drawing);
-                            break; 
-                        }
-                    }
-                    if (drawingsToDelete.has(drawing)) break; 
-                }
-                if (drawing.points.length === 1) {
-                    const pathPoint = drawing.points[0];
-                    const distance = Math.sqrt(Math.pow(eraserPoint.x - pathPoint.x, 2) + Math.pow(eraserPoint.y - pathPoint.y, 2));
+                for (const pathPoint of drawing.points) {
+                    const distance = Math.hypot(eraserPoint.x - pathPoint.x, eraserPoint.y - pathPoint.y);
                     const collisionThreshold = (drawing.lineWidth / 2) + (this.eraserWidth / 2);
                     if (distance < collisionThreshold) {
                         drawingsToDelete.add(drawing);
+                        break; 
                     }
                 }
             }
@@ -498,7 +536,7 @@ class AnnotationApp {
         if (this.committedCanvas.width > 0 && this.committedCanvas.height > 0) {
             this.ctx.drawImage(this.committedCanvas, 0, 0);
         }
-        if (this.currentPath && this.isDrawing && !this.isTwoFingerActive) { // Only draw currentPath if drawing and not two-finger
+        if (this.currentPath && this.isDrawing && !this.isTwoFingerActive) {
             this._drawSinglePath(this.currentPath, this.ctx);
         }
     }
@@ -578,8 +616,8 @@ class AnnotationApp {
                 this.drawings.forEach(path => {
                     path.opacity = path.opacity !== undefined ? path.opacity : (path.tool === 'highlighter' ? this.highlighterOpacity : 1.0);
                     path.lineWidth = path.lineWidth !== undefined ? path.lineWidth :
-                                     (path.tool === 'pen' ? this.penLineWidth :
-                                     (path.tool === 'highlighter' ? this.highlighterLineWidth : this.eraserWidth));
+                                        (path.tool === 'pen' ? this.penLineWidth :
+                                        (path.tool === 'highlighter' ? this.highlighterLineWidth : this.eraserWidth));
                 });
             } catch (error) {
                 console.error("AnnotationApp: Failed to parse drawings from localStorage:", error);
@@ -591,11 +629,3 @@ class AnnotationApp {
         }
     }
 }
-
-document.addEventListener('DOMContentLoaded', () => {
-    if (document.getElementById('annotationTarget')) {
-        const app = new AnnotationApp('#annotationTarget');
-    } else {
-        console.error("Annotation target #annotationTarget not found in the DOM.");
-    }
-});
