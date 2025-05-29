@@ -6,7 +6,6 @@ class AnnotationApp {
             console.error("AnnotationApp: Target container for annotations not found:", targetContainerSelector);
             return;
         }
-        // Ensure targetContainer can contain an absolutely positioned canvas
         if (getComputedStyle(this.targetContainer).position === 'static') {
             this.targetContainer.style.position = 'relative';
         }
@@ -17,7 +16,7 @@ class AnnotationApp {
         this.committedCtx = null;
 
         this.isDrawing = false;
-        this.noteModeActive = false;
+        this.noteModeActive = false; // Initially off
         this.currentTool = 'pen';
         this.penColor = '#000000';
         this.penLineWidth = 3;
@@ -29,12 +28,8 @@ class AnnotationApp {
         this.drawings = [];
 
         this.animationFrameRequestId = null;
-
-        // Scroll offsets for viewport rendering
         this.scrollOffsetX = 0;
         this.scrollOffsetY = 0;
-
-        // Determine the element to listen for scroll events on
         this.scrollableElement = (this.targetContainer === document.body || this.targetContainer === document.documentElement)
                                  ? window
                                  : this.targetContainer;
@@ -49,17 +44,14 @@ class AnnotationApp {
             eraser: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"></path></svg>'
         };
 
-        // Throttled event handlers
-        this.handleScrollThrottled = this._throttle(this.handleScroll.bind(this), 50); // 50ms throttle
-        this.handleResizeThrottled = this._throttle(this.handleResize.bind(this), 100); // 100ms throttle
-
+        this.handleScrollThrottled = this._throttle(this.handleScroll.bind(this), 50);
+        this.handleResizeThrottled = this._throttle(this.handleResize.bind(this), 100);
 
         if(this.targetContainer) {
             this.init();
         }
     }
 
-    // Simple throttle function
     _throttle(func, limit) {
         let lastFunc;
         let lastRan;
@@ -83,10 +75,10 @@ class AnnotationApp {
         this.createCanvases();
         this.createToolbar();
         this.addEventListeners();
-        this.loadDrawings(); // Load drawings before first resize/render
-        this.resizeCanvases(); // Perform initial sizing and rendering
+        this.loadDrawings();
+        this.resizeCanvases(); // This will draw loaded drawings even if noteMode is initially off
         this.selectTool('pen');
-        this.updateToolSettingsVisibility(); // Ensure correct initial state
+        this.updateToolSettingsVisibility();
     }
 
     createCanvases() {
@@ -95,7 +87,7 @@ class AnnotationApp {
         this.canvas.style.position = 'absolute';
         this.canvas.style.top = '0';
         this.canvas.style.left = '0';
-        this.canvas.style.zIndex = '1000'; // Adjust as needed
+        this.canvas.style.zIndex = '1000';
         this.canvas.style.pointerEvents = 'none'; // Initially non-interactive
         this.targetContainer.appendChild(this.canvas);
         this.ctx = this.canvas.getContext('2d');
@@ -105,6 +97,7 @@ class AnnotationApp {
     }
 
     _createStyledButton(id, title, innerHTML, className = 'tool-button') {
+        // ... (same as before)
         const button = document.createElement('button');
         button.id = id;
         button.title = title;
@@ -114,26 +107,26 @@ class AnnotationApp {
     }
 
     createToolbar() {
-        this.masterAnnotationToggleBtn = this._createStyledButton('masterAnnotationToggleBtn', 'NOTE - enable/disable', 'NOTE ✏️', '');
-        this.masterAnnotationToggleBtn.style.position = 'fixed'; // Fixed to viewport for easy access
+        // ... (same as before, ensure toolbar is appended to body and fixed)
+        this.masterAnnotationToggleBtn = this._createStyledButton('masterAnnotationToggleBtn', 'NOTE - enable/disable', 'NOTE ✏️ (غیرفعال)', '');
+        this.masterAnnotationToggleBtn.style.position = 'fixed';
         this.masterAnnotationToggleBtn.style.top = '5px';
         this.masterAnnotationToggleBtn.style.right = '5px';
-        this.masterAnnotationToggleBtn.style.zIndex = '1002'; // Above canvas
-        document.body.appendChild(this.masterAnnotationToggleBtn); // Append to body to be fixed
+        this.masterAnnotationToggleBtn.style.zIndex = '1002';
+        document.body.appendChild(this.masterAnnotationToggleBtn);
 
         this.toolsPanel = document.createElement('div');
         this.toolsPanel.id = 'annotationToolsPanel';
-        this.toolsPanel.style.position = 'fixed'; // Fixed to viewport
-        this.toolsPanel.style.display = 'none';
+        this.toolsPanel.style.position = 'fixed';
+        this.toolsPanel.style.display = 'none'; // Initially hidden
         this.toolsPanel.style.flexDirection = 'column';
         this.toolsPanel.style.top = '50px';
         this.toolsPanel.style.right = '5px';
-        this.toolsPanel.style.zIndex = '1002'; // Above canvas
+        this.toolsPanel.style.zIndex = '1002';
         this.toolsPanel.style.backgroundColor = 'rgba(240, 240, 240, 0.9)';
         this.toolsPanel.style.border = '1px solid #ccc';
         this.toolsPanel.style.padding = '5px';
         this.toolsPanel.style.borderRadius = '4px';
-
 
         const toolsGroup = document.createElement('div');
         toolsGroup.className = 'toolbar-group';
@@ -147,14 +140,9 @@ class AnnotationApp {
         penSettingsGroup.className = 'toolbar-group';
         penSettingsGroup.id = 'penSettingsGroup';
         this.penColorPicker = document.createElement('input');
-        this.penColorPicker.type = 'color';
-        this.penColorPicker.value = this.penColor;
-        this.penColorPicker.title = 'رنگ قلم';
+        this.penColorPicker.type = 'color'; this.penColorPicker.value = this.penColor; this.penColorPicker.title = 'رنگ قلم';
         this.penLineWidthInput = document.createElement('input');
-        this.penLineWidthInput.type = 'number';
-        this.penLineWidthInput.value = this.penLineWidth;
-        this.penLineWidthInput.min = '1'; this.penLineWidthInput.max = '20';
-        this.penLineWidthInput.title = 'ضخامت قلم';
+        this.penLineWidthInput.type = 'number'; this.penLineWidthInput.value = this.penLineWidth; this.penLineWidthInput.min = '1'; this.penLineWidthInput.max = '20'; this.penLineWidthInput.title = 'ضخامت قلم';
         penSettingsGroup.append(this.penColorPicker, this.penLineWidthInput);
         this.toolsPanel.appendChild(penSettingsGroup);
 
@@ -162,27 +150,21 @@ class AnnotationApp {
         highlighterSettingsGroup.className = 'toolbar-group';
         highlighterSettingsGroup.id = 'highlighterSettingsGroup';
         this.highlighterColorPicker = document.createElement('input');
-        this.highlighterColorPicker.type = 'color';
-        this.highlighterColorPicker.value = this.highlighterColor;
-        this.highlighterColorPicker.title = 'رنگ هایلایتر';
+        this.highlighterColorPicker.type = 'color'; this.highlighterColorPicker.value = this.highlighterColor; this.highlighterColorPicker.title = 'رنگ هایلایتر';
         this.highlighterLineWidthInput = document.createElement('input');
-        this.highlighterLineWidthInput.type = 'number';
-        this.highlighterLineWidthInput.value = this.highlighterLineWidth;
-        this.highlighterLineWidthInput.min = '5';
-        this.highlighterLineWidthInput.max = '50';
-        this.highlighterLineWidthInput.title = 'ضخامت هایلایتر';
+        this.highlighterLineWidthInput.type = 'number'; this.highlighterLineWidthInput.value = this.highlighterLineWidth; this.highlighterLineWidthInput.min = '5'; this.highlighterLineWidthInput.max = '50'; this.highlighterLineWidthInput.title = 'ضخامت هایلایتر';
         highlighterSettingsGroup.append(this.highlighterColorPicker, this.highlighterLineWidthInput);
         this.toolsPanel.appendChild(highlighterSettingsGroup);
 
         this.clearBtn = this._createStyledButton('clearAnnotationsBtn', 'پاک کردن تمام یادداشت‌ها', 'پاک کردن همه', '');
-        this.clearBtn.id = 'clearAnnotationsBtn';
         this.toolsPanel.appendChild(this.clearBtn);
 
-        document.body.appendChild(this.toolsPanel); // Append to body to be fixed
-        this.updateToolSettingsVisibility();
+        document.body.appendChild(this.toolsPanel);
+        this.updateToolSettingsVisibility(); // Call after creation
     }
 
     updateToolSettingsVisibility() {
+        // ... (same as before)
         const penSettings = document.getElementById('penSettingsGroup');
         const highlighterSettings = document.getElementById('highlighterSettingsGroup');
         if (penSettings) {
@@ -194,6 +176,7 @@ class AnnotationApp {
     }
 
     addEventListeners() {
+        // ... (same as before)
         window.addEventListener('resize', this.handleResizeThrottled);
         this.scrollableElement.addEventListener('scroll', this.handleScrollThrottled);
 
@@ -222,29 +205,33 @@ class AnnotationApp {
 
     toggleMasterAnnotationMode() {
         this.noteModeActive = !this.noteModeActive;
-        if (this.noteModeActive) {
+        if (this.noteModeActive) { // Turning ON
             this.canvas.style.pointerEvents = 'auto';
             document.body.classList.add('annotation-active');
-            this.targetContainer.classList.add('annotation-active-on-target'); // Differentiate class on target
+            this.targetContainer.classList.add('annotation-active-on-target');
             this.masterAnnotationToggleBtn.textContent = 'NOTE ✏️ (فعال)';
             this.masterAnnotationToggleBtn.classList.add('active');
             this.toolsPanel.style.display = 'flex';
             if (!this.currentTool) this.selectTool('pen');
-            this.resizeCanvases(); // Ensure canvas is correctly sized and positioned and drawn
-        } else {
-            this.canvas.style.pointerEvents = 'none';
+            this.resizeCanvases(); // Ensure canvas is correctly sized and existing drawings are rendered
+        } else { // Turning OFF
+            this.canvas.style.pointerEvents = 'none'; // Make canvas non-interactive
             document.body.classList.remove('annotation-active');
             this.targetContainer.classList.remove('annotation-active-on-target');
             this.masterAnnotationToggleBtn.textContent = 'NOTE ✏️ (غیرفعال)';
             this.masterAnnotationToggleBtn.classList.remove('active');
-            this.toolsPanel.style.display = 'none';
-            this.isDrawing = false;
-            this.currentPath = null;
+            this.toolsPanel.style.display = 'none'; // Hide tools
+
+            this.isDrawing = false; // Cancel any drawing in progress
             if (this.animationFrameRequestId !== null) {
                 cancelAnimationFrame(this.animationFrameRequestId);
                 this.animationFrameRequestId = null;
             }
-            this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height); // Clear visible canvas
+            this.currentPath = null; // Clear any unfinished path visually
+
+            // **KEY CHANGE**: Redraw committed drawings to keep them visible
+            this.redrawCommittedDrawings();
+            this.renderVisibleCanvas();
         }
         this.updateToolSettingsVisibility();
     }
@@ -257,19 +244,20 @@ class AnnotationApp {
             this.scrollOffsetX = this.scrollableElement.scrollLeft;
             this.scrollOffsetY = this.scrollableElement.scrollTop;
         }
-        if (this.noteModeActive) { // Only redraw if active to save performance
-            this.redrawCommittedDrawings();
-            this.renderVisibleCanvas();
-        }
+        // Always redraw to keep drawings correctly positioned, regardless of noteModeActive
+        this.redrawCommittedDrawings();
+        this.renderVisibleCanvas();
     }
 
     handleResize() {
+        // Always resize and redraw, regardless of noteModeActive
         this.resizeCanvases();
     }
 
     getEventCoordinates(event) {
+        // ... (same as before)
         let rawX, rawY;
-        const rect = this.canvas.getBoundingClientRect(); // Canvas is viewport-sized, rect is its pos in viewport
+        const rect = this.canvas.getBoundingClientRect();
 
         if (event.touches && event.touches.length > 0) {
             rawX = event.touches[0].clientX;
@@ -278,22 +266,19 @@ class AnnotationApp {
             rawX = event.clientX;
             rawY = event.clientY;
         }
-        // Coordinates relative to the canvas element itself (which is size of targetContainer's client area)
         const viewX = rawX - rect.left;
         const viewY = rawY - rect.top;
-
-        // Coordinates relative to the scrollable content of targetContainer
         const docX = viewX + this.scrollOffsetX;
         const docY = viewY + this.scrollOffsetY;
-
         return { viewX, viewY, docX, docY };
     }
 
     handleStart(event) {
+        // ... (same as before, only if noteModeActive)
         if (!this.noteModeActive || (event.touches && event.touches.length > 1)) return;
         event.preventDefault();
         this.isDrawing = true;
-        const { docX, docY } = this.getEventCoordinates(event); // Use document-relative coordinates
+        const { docX, docY } = this.getEventCoordinates(event);
 
         this.currentPath = { tool: this.currentTool, points: [{ x: docX, y: docY }] };
         if (this.currentTool === 'pen') {
@@ -310,14 +295,15 @@ class AnnotationApp {
     }
 
     handleMove(event) {
+        // ... (same as before, only if isDrawing and noteModeActive)
         if (!this.isDrawing || !this.noteModeActive || (event.touches && event.touches.length > 1)) return;
         event.preventDefault();
-        const { docX, docY } = this.getEventCoordinates(event); // Use document-relative coordinates
+        const { docX, docY } = this.getEventCoordinates(event);
         if (this.currentPath) {
             this.currentPath.points.push({ x: docX, y: docY });
             if (this.animationFrameRequestId === null) {
                 this.animationFrameRequestId = requestAnimationFrame(() => {
-                    this.renderVisibleCanvas();
+                    this.renderVisibleCanvas(); // Will only draw currentPath if noteModeActive
                     this.animationFrameRequestId = null;
                 });
             }
@@ -325,18 +311,19 @@ class AnnotationApp {
     }
 
     handleEnd(mouseLeftCanvas = false) {
+        // ... (same as before)
         if (this.animationFrameRequestId !== null) {
             cancelAnimationFrame(this.animationFrameRequestId);
             this.animationFrameRequestId = null;
         }
 
-        if (mouseLeftCanvas && !this.isDrawing && this.noteModeActive) { // If mouse leaves but wasn't drawing, just clear current path visual
-             this.currentPath = null;
-             this.renderVisibleCanvas(); // Redraw to remove temporary current path
+        if (mouseLeftCanvas && !this.isDrawing) {
+             if (this.noteModeActive) this.currentPath = null; // only clear if active, to avoid removing just-drawn path when disabling
+             this.renderVisibleCanvas();
              return;
         }
 
-        if (this.isDrawing) {
+        if (this.isDrawing) { // isDrawing is only true if noteModeActive was true at start
             this.isDrawing = false;
             if (this.currentPath && this.currentPath.points.length > 1) {
                 if (this.currentTool === 'eraser') {
@@ -344,18 +331,18 @@ class AnnotationApp {
                 } else {
                     this.drawings.push(this.currentPath);
                 }
-                this.redrawCommittedDrawings(); // Redraw to offscreen
+                this.redrawCommittedDrawings();
                 this.saveDrawings();
             }
             this.currentPath = null;
-            this.renderVisibleCanvas(); // Final render to visible canvas
+            this.renderVisibleCanvas();
         }
     }
 
     eraseStrokes() {
+        // ... (same as before)
         if (!this.currentPath || this.currentPath.points.length === 0) return;
         const drawingsToDelete = new Set();
-        // All coordinates (eraser path and stored drawings) are document-relative
         for (const eraserPoint of this.currentPath.points) {
             for (let i = 0; i < this.drawings.length; i++) {
                 const drawing = this.drawings[i];
@@ -376,19 +363,13 @@ class AnnotationApp {
     }
 
     resizeCanvases() {
-        // Canvas size is based on the client area of the target container
         const width = this.targetContainer.clientWidth;
         const height = this.targetContainer.clientHeight;
 
-        this.canvas.width = width;
-        this.canvas.height = height;
-        this.canvas.style.width = `${width}px`;
-        this.canvas.style.height = `${height}px`;
+        this.canvas.width = width; this.canvas.height = height;
+        this.canvas.style.width = `${width}px`; this.canvas.style.height = `${height}px`;
+        this.committedCanvas.width = width; this.committedCanvas.height = height;
 
-        this.committedCanvas.width = width;
-        this.committedCanvas.height = height;
-
-        // Update scroll offsets, as they define the "view" into the document-based drawings
         if (this.scrollableElement === window) {
             this.scrollOffsetX = this.scrollableElement.pageXOffset;
             this.scrollOffsetY = this.scrollableElement.pageYOffset;
@@ -397,77 +378,71 @@ class AnnotationApp {
             this.scrollOffsetY = this.scrollableElement.scrollTop;
         }
         
-        if (this.noteModeActive) { // Only redraw if active
-            this.redrawCommittedDrawings();
-            this.renderVisibleCanvas();
-        }
+        // Always redraw to reflect current state and new dimensions/scroll
+        this.redrawCommittedDrawings();
+        this.renderVisibleCanvas();
     }
 
     redrawCommittedDrawings() {
         this.committedCtx.clearRect(0, 0, this.committedCanvas.width, this.committedCanvas.height);
-        if (!this.noteModeActive && !this.isDrawing) return; // Don't draw if not active and not in midst of drawing
-
+        // Always redraw all stored drawings to the offscreen canvas
         this.drawings.forEach(path => {
-            // Pass scroll offsets for transformation
             this._drawSinglePath(path, this.committedCtx, this.scrollOffsetX, this.scrollOffsetY);
         });
     }
 
     renderVisibleCanvas() {
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        if (!this.noteModeActive && !this.isDrawing) return;
-
+        // Always draw the committed (offscreen) canvas to the visible canvas
         if (this.committedCanvas.width > 0 && this.committedCanvas.height > 0) {
             this.ctx.drawImage(this.committedCanvas, 0, 0);
         }
-        // Draw current path if actively drawing
-        if (this.currentPath && this.isDrawing) {
-            // Pass scroll offsets for transformation
+        // Only draw the current, live path if drawing is active AND note mode is on
+        if (this.currentPath && this.isDrawing && this.noteModeActive) {
             this._drawSinglePath(this.currentPath, this.ctx, this.scrollOffsetX, this.scrollOffsetY);
         }
     }
 
     _drawSinglePath(path, context, scrollX, scrollY) {
+        // ... (same as before)
         if (!path || path.points.length === 0) return;
 
         context.beginPath();
         context.lineCap = 'round';
         context.lineJoin = 'round';
 
-        if (path.tool === 'eraser' && this.isDrawing && path === this.currentPath) {
-            // Visual feedback for eraser tool while drawing
-            context.strokeStyle = 'rgba(128, 128, 128, 0.7)'; // Semi-transparent grey
-            context.lineWidth = path.lineWidth; // Eraser width
+        // Visual feedback for eraser tool *while actively drawing in note mode*
+        if (path.tool === 'eraser' && this.isDrawing && path === this.currentPath && this.noteModeActive) {
+            context.strokeStyle = 'rgba(128, 128, 128, 0.7)';
+            context.lineWidth = path.lineWidth;
             context.globalAlpha = 0.7;
-        } else if (path.tool !== 'eraser') {
+        } else if (path.tool !== 'eraser') { // For pen and highlighter
             context.strokeStyle = path.color;
             context.lineWidth = path.lineWidth;
             context.globalAlpha = path.opacity;
         } else {
-            return; // Don't visually draw committed eraser paths, they modify data
+            return; // Don't visually draw committed eraser paths, they only modify data
         }
 
         if (path.points.length > 0) {
-            // Transform points from document-relative to canvas-relative using scroll offsets
             context.moveTo(path.points[0].x - scrollX, path.points[0].y - scrollY);
             for (let i = 1; i < path.points.length; i++) {
-                // Basic culling: if a segment is way off screen, could skip, but complex.
-                // For now, draw all points of a visible path.
                 context.lineTo(path.points[i].x - scrollX, path.points[i].y - scrollY);
             }
             context.stroke();
         }
-        context.globalAlpha = 1.0; // Reset globalAlpha
+        context.globalAlpha = 1.0;
     }
 
     selectTool(toolName) {
+        // ... (same as before)
         this.currentTool = toolName;
         this.updateActiveToolButtonVisuals();
         this.updateToolSettingsVisibility();
     }
 
     updateActiveToolButtonVisuals() {
-        // Ensure buttons exist before trying to modify classList
+        // ... (same as before)
         if(this.penBtn) this.penBtn.classList.remove('active');
         if(this.highlighterBtn) this.highlighterBtn.classList.remove('active');
         if(this.eraserBtn) this.eraserBtn.classList.remove('active');
@@ -481,14 +456,14 @@ class AnnotationApp {
         if (confirm('آیا مطمئن هستید که می‌خواهید تمام یادداشت‌ها و هایلایت‌ها را پاک کنید؟')) {
             this.drawings = [];
             localStorage.removeItem(this.storageKey);
-            if (this.noteModeActive) {
-                 this.redrawCommittedDrawings();
-                 this.renderVisibleCanvas();
-            }
+            // Always update the display after clearing
+            this.redrawCommittedDrawings(); // Will clear the committed canvas
+            this.renderVisibleCanvas();   // Will clear the visible canvas
         }
     }
 
     saveDrawings() {
+        // ... (same as before)
         try {
             const drawingsToSave = this.drawings.filter(path => path.tool !== 'eraser');
             localStorage.setItem(this.storageKey, JSON.stringify(drawingsToSave));
@@ -500,11 +475,11 @@ class AnnotationApp {
     }
 
     loadDrawings() {
+        // ... (same as before)
         const savedData = localStorage.getItem(this.storageKey);
         if (savedData) {
             try {
                 this.drawings = JSON.parse(savedData);
-                // Provide default values for older drawings that might miss properties
                 this.drawings.forEach(path => {
                     path.opacity = path.opacity !== undefined ? path.opacity : (path.tool === 'highlighter' ? this.highlighterOpacity : 1.0);
                     path.lineWidth = path.lineWidth !== undefined ? path.lineWidth :
@@ -514,24 +489,20 @@ class AnnotationApp {
             } catch (error) {
                 console.error("AnnotationApp: Failed to parse drawings from localStorage:", error);
                 this.drawings = [];
-                localStorage.removeItem(this.storageKey); // Clear corrupted data
+                localStorage.removeItem(this.storageKey);
             }
         } else {
             this.drawings = [];
         }
-        // Drawings are loaded. If annotation mode is active, they will be drawn by resizeCanvases or toggleMasterAnnotationMode.
-        // No immediate redraw here, let the activation logic handle it.
+        // Drawings will be rendered by the resizeCanvases call in init()
     }
 }
 
-// Example Usage:
-// window.addEventListener('DOMContentLoaded', () => {
-//     // To use the whole body as the target for annotations (window scrolling)
-//     // const app = new AnnotationApp('body');
-
-//     // Or, to use a specific scrollable div as the target
-//     // Ensure this div has content that makes it scrollable, and perhaps a defined height.
-//     // e.g., <div id="myScrollableContent" style="height: 500px; overflow: auto; border: 1px solid blue;">...long content...</div>
-//     // const app = new AnnotationApp('#myScrollableContent');
+// Example Usage (remains the same):
+// window.addEventListener('load', () => {
+//     if (typeof AnnotationApp !== 'undefined') {
+//         new AnnotationApp('.container'); // Or your desired target selector
+//     } else {
+//         console.error('AnnotationApp module not loaded.');
+//     }
 // });
-
