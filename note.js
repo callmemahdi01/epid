@@ -117,20 +117,16 @@ class AnnotationApp {
         // Removed: penSettingsGroup.style.gap = '5px';
 
         const penColorLabel = document.createElement('label');
-        penColorLabel.textContent = 'رنگ قلم:';
         this.penColorPicker = document.createElement('input');
         this.penColorPicker.type = 'color';
         this.penColorPicker.value = this.penColor;
-        this.penColorPicker.title = 'رنگ قلم';
         // Removed: this.penColorPicker.style.marginLeft = '5px';
 
         const penWidthLabel = document.createElement('label');
-        penWidthLabel.textContent = 'ضخامت قلم:';
         this.penLineWidthInput = document.createElement('input');
         this.penLineWidthInput.type = 'number';
         this.penLineWidthInput.value = this.penLineWidth;
         this.penLineWidthInput.min = '1'; this.penLineWidthInput.max = '20';
-        this.penLineWidthInput.title = 'ضخامت قلم';
         // Removed: this.penLineWidthInput.style.marginLeft = '5px';
         // Removed: this.penLineWidthInput.style.width = '50px';
 
@@ -146,21 +142,17 @@ class AnnotationApp {
         // Removed: highlighterSettingsGroup.style.gap = '5px';
 
         const highlighterColorLabel = document.createElement('label');
-        highlighterColorLabel.textContent = 'رنگ هایلایتر:';
         this.highlighterColorPicker = document.createElement('input');
         this.highlighterColorPicker.type = 'color';
         this.highlighterColorPicker.value = this.highlighterColor;
-        this.highlighterColorPicker.title = 'رنگ هایلایتر';
         // Removed: this.highlighterColorPicker.style.marginLeft = '5px';
 
         const highlighterWidthLabel = document.createElement('label');
-        highlighterWidthLabel.textContent = 'ضخامت هایلایتر:';
         this.highlighterLineWidthInput = document.createElement('input');
         this.highlighterLineWidthInput.type = 'number';
         this.highlighterLineWidthInput.value = this.highlighterLineWidth;
         this.highlighterLineWidthInput.min = '5';
         this.highlighterLineWidthInput.max = '50';
-        this.highlighterLineWidthInput.title = 'ضخامت هایلایتر';
         // Removed: this.highlighterLineWidthInput.style.marginLeft = '5px';
         // Removed: this.highlighterLineWidthInput.style.width = '50px';
 
