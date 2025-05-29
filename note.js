@@ -126,11 +126,15 @@ class AnnotationApp {
 
         this.toolsPanel = document.createElement('div');
         this.toolsPanel.id = 'annotationToolsPanel';
+<<<<<<< HEAD
+<<<<<<< HEAD
         this.toolsPanel.style.display = 'none'; // Original style
         this.toolsPanel.style.flexDirection = 'row'; // Original style
         this.toolsPanel.style.top = '5px'; // Original style
         this.toolsPanel.style.right = '140px'; // Original style
 
+=======
+>>>>>>> parent of 41a690b (fix bug)
 =======
 >>>>>>> parent of 41a690b (fix bug)
         this.toolsPanel.style.display = 'none'; 
