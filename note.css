@@ -55,7 +55,7 @@ body.annotation-active {
 
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     display: none;
-    flex-direction: row;
+    flex-direction: column;
     gap: 5px;
 
 }
@@ -117,7 +117,7 @@ body.annotation-active {
     background-color: rgba(255,255,255,0.7); /* پس‌زمینه برای انتخابگر رنگ */
 }
 #annotationToolsPanel input[type="number"] {
-    width: 40px;
+    width: 43px;
     height: 27px;
     border: 1px solid rgba(206, 212, 218, 0.7);
     border-radius: 5px;
@@ -131,13 +131,13 @@ body.annotation-active {
     background-color: rgba(248, 215, 218, 0.8);
     color: #721c24;
     border: 1px solid rgba(245, 198, 203, 0.7);
-    padding: 7px;
+    padding: 3px;
     font-size: 14px;
     border-radius: 5px;
     cursor: pointer;
     text-align: center;
     transition: background-color 0.2s ease;
-    margin: 5px;
+    margin-bottom: 5px;
 }
 #clearAnnotationsBtn:hover {
     background-color: rgba(241, 176, 183, 0.9);
