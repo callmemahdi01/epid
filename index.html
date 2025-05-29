@@ -780,8 +780,16 @@ const el=document.querySelector(".container"),button=document.createElement("but
 </script>
 <link rel="stylesheet" href="./note.css">
 <script src="./note.js"></script>
-    <script>
-       const annotationApp = new AnnotationApp('.container');
+        <script>
+        // پس از بارگذاری کامل صفحه و ماژول، آن را راه‌اندازی کنید
+        window.addEventListener('load', () => {
+            // مطمئن شوید که کلاس AnnotationApp در دسترس است
+            if (typeof AnnotationApp !== 'undefined') {
+                new AnnotationApp('.container'); // کانتینر اصلی صفحه شما
+            } else {
+                console.error('AnnotationApp module not loaded.');
+            }
+        });
     </script>
 </body>
 </html>
