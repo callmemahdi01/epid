@@ -39,6 +39,7 @@ class AnnotationApp {
             eraser: '<span class="material-symbols-outlined">ink_eraser</span>'
         };
         
+        // ارجاع به عناصر مودال در اینجا تعریف می‌شود اما در _createModalDOM مقداردهی می‌شود
         this.modalOverlay = null;
         this.modalMessage = null;
         this.modalButtonsContainer = null;
@@ -46,7 +47,7 @@ class AnnotationApp {
         this.isTwoFingerActive = false;
         this.twoFingerTapData = null; 
         this.TAP_DURATION_THRESHOLD = 300; 
-        this.TAP_MOVEMENT_THRESHOLD = 20; // پیکسل - آستانه حرکت برای تشخیص ضربه
+        this.TAP_MOVEMENT_THRESHOLD = 20;  
 
         if(this.targetContainer) {
             this.init();
@@ -54,7 +55,7 @@ class AnnotationApp {
     }
 
     init() {
-        this._createModalDOM();
+        this._createModalDOM(); // ایجاد عناصر مودال به صورت پویا
         this.createCanvases();
         this.createToolbar();
         this.addEventListeners();
@@ -66,22 +67,29 @@ class AnnotationApp {
     }
 
     _createModalDOM() {
+        // ایجاد پوشش مودال
         this.modalOverlay = document.createElement('div');
         this.modalOverlay.className = 'custom-modal-overlay';
-        this.modalOverlay.style.display = 'none';
+        this.modalOverlay.style.display = 'none'; // در ابتدا مخفی
 
+        // ایجاد دیالوگ مودال (محتوا)
         const modalDialog = document.createElement('div');
         modalDialog.className = 'custom-modal';
 
+        // ایجاد عنصر پیام مودال
         this.modalMessage = document.createElement('div');
         this.modalMessage.className = 'custom-modal-message';
 
+        // ایجاد نگهدارنده دکمه‌های مودال
         this.modalButtonsContainer = document.createElement('div');
         this.modalButtonsContainer.className = 'custom-modal-buttons';
 
+        // مونتاژ مودال
         modalDialog.appendChild(this.modalMessage);
         modalDialog.appendChild(this.modalButtonsContainer);
         this.modalOverlay.appendChild(modalDialog);
+
+        // افزودن مودال به body سند
         document.body.appendChild(this.modalOverlay);
     }
 
@@ -108,21 +116,21 @@ class AnnotationApp {
 
     createToolbar() {
         this.masterAnnotationToggleBtn = this._createStyledButton('masterAnnotationToggleBtn', 'NOTE - enable/disable', 'NOTE ✏️', ''); 
-        this.masterAnnotationToggleBtn.style.position = 'fixed'; // استفاده از fixed برای قرارگیری نسبت به viewport
         this.masterAnnotationToggleBtn.style.top = '10px'; 
         this.masterAnnotationToggleBtn.style.right = '10px';
-        this.masterAnnotationToggleBtn.style.zIndex = '1001'; // بالاتر از بوم
-        document.body.appendChild(this.masterAnnotationToggleBtn); // اضافه کردن به body
+        // اطمینان از اینکه targetContainer والد صحیح است
+        // اگر targetContainer کل صفحه نیست، شاید بهتر باشد دکمه اصلی و پنل ابزار به body اضافه شوند
+        // یا موقعیت آن‌ها نسبت به targetContainer تنظیم شود. در اینجا فرض بر این است که targetContainer مناسب است.
+        this.targetContainer.appendChild(this.masterAnnotationToggleBtn);
 
 
         this.toolsPanel = document.createElement('div');
         this.toolsPanel.id = 'annotationToolsPanel';
         this.toolsPanel.style.display = 'none'; 
-        this.toolsPanel.style.position = 'fixed'; // استفاده از fixed برای قرارگیری نسبت به viewport
         this.toolsPanel.style.flexDirection = 'column'; 
         this.toolsPanel.style.top = '55px'; 
         this.toolsPanel.style.right = '10px';
-        this.toolsPanel.style.zIndex = '1001'; // بالاتر از بوم
+        // استفاده از کلاس‌های Tailwind برای استایل‌دهی پنل ابزار
         this.toolsPanel.classList.add('p-2', 'rounded-md', 'shadow-lg', 'bg-white', 'border', 'border-gray-200', 'flex', 'flex-col', 'gap-2');
 
 
@@ -169,22 +177,25 @@ class AnnotationApp {
         this.clearBtn.id = 'clearAnnotationsBtn'; 
         this.toolsPanel.appendChild(this.clearBtn);
 
-        document.body.appendChild(this.toolsPanel); // اضافه کردن به body
+        this.targetContainer.appendChild(this.toolsPanel);
         this.updateToolSettingsVisibility();
     }
     
     _showModal(message, buttonsConfig) {
+        // عناصر مودال اکنون به صورت پویا ایجاد شده‌اند و در this.modalOverlay و غیره ذخیره شده‌اند.
         if (!this.modalOverlay || !this.modalMessage || !this.modalButtonsContainer) {
             console.error("Modal elements were not created correctly.");
-            this._createModalDOM(); 
-            if (!this.modalOverlay) return; 
+            // شاید بخواهید در اینجا مودال را دوباره ایجاد کنید یا یک پیام خطا به کاربر نشان دهید
+            this._createModalDOM(); // سعی در ایجاد مجدد
+            if (!this.modalOverlay) return; // اگر باز هم ایجاد نشد، خارج شوید
         }
         this.modalMessage.textContent = message;
-        this.modalButtonsContainer.innerHTML = ''; 
+        this.modalButtonsContainer.innerHTML = ''; // پاک کردن دکمه‌های قبلی
 
         buttonsConfig.forEach(config => {
             const button = document.createElement('button');
             button.textContent = config.text;
+            // کلاس‌های CSS برای دکمه‌ها از فایل CSS شما اعمال می‌شوند
             button.className = `custom-modal-button ${config.className}`; 
             button.addEventListener('click', () => {
                 this._hideModal();
@@ -218,7 +229,7 @@ class AnnotationApp {
     }
 
     updateToolSettingsVisibility() {
-        const penSettings = document.getElementById('penSettingsGroup');
+        const penSettings = document.getElementById('penSettingsGroup'); // اینها هنوز از طریق ID گرفته می‌شوند چون در createToolbar ایجاد می‌شوند
         const highlighterSettings = document.getElementById('highlighterSettingsGroup');
         if (penSettings) {
             penSettings.style.display = (this.currentTool === 'pen' && this.noteModeActive) ? 'flex' : 'none';
@@ -231,11 +242,10 @@ class AnnotationApp {
     addEventListeners() {
         window.addEventListener('resize', () => this.resizeCanvases());
 
-        // { passive: false } اجازه می دهد تا event.preventDefault() فراخوانی شود
         this.canvas.addEventListener('touchstart', this.handleTouchStart.bind(this), { passive: false });
         this.canvas.addEventListener('touchmove', this.handleTouchMove.bind(this), { passive: false });
         this.canvas.addEventListener('touchend', this.handleTouchEnd.bind(this));
-        this.canvas.addEventListener('touchcancel', this.handleTouchEnd.bind(this)); // مشابه touchend برای لغو
+        this.canvas.addEventListener('touchcancel', this.handleTouchEnd.bind(this));
 
         this.canvas.addEventListener('mousedown', this.handleMouseDown.bind(this));
         this.canvas.addEventListener('mousemove', this.handleMouseMove.bind(this));
@@ -259,7 +269,7 @@ class AnnotationApp {
         if (this.noteModeActive) {
             this.canvas.style.pointerEvents = 'auto';
             document.body.classList.add('annotation-active');
-            // this.targetContainer.classList.add('annotation-active'); // اگر targetContainer تمام صفحه نیست، این ممکن است لازم نباشد
+            this.targetContainer.classList.add('annotation-active');
             this.masterAnnotationToggleBtn.textContent = 'NOTE ✏️ (فعال)';
             this.masterAnnotationToggleBtn.classList.add('active');
             this.toolsPanel.style.display = 'flex';
@@ -267,7 +277,7 @@ class AnnotationApp {
         } else {
             this.canvas.style.pointerEvents = 'none';
             document.body.classList.remove('annotation-active');
-            // this.targetContainer.classList.remove('annotation-active');
+            this.targetContainer.classList.remove('annotation-active');
             this.masterAnnotationToggleBtn.textContent = 'NOTE ✏️ (غیرفعال)';
             this.masterAnnotationToggleBtn.classList.remove('active');
             this.toolsPanel.style.display = 'none';
@@ -294,7 +304,6 @@ class AnnotationApp {
             x = source.clientX - rect.left;
             y = source.clientY - rect.top;
         } else {
-            console.warn("AnnotationApp: Could not determine coordinates from event:", e);
             return { x: 0, y: 0 }; 
         }
         return { x, y };
@@ -303,7 +312,7 @@ class AnnotationApp {
     getCurrentToolProperties() {
         if (this.currentTool === 'pen') return { color: this.penColor, lineWidth: this.penLineWidth, opacity: 1.0 };
         if (this.currentTool === 'highlighter') return { color: this.highlighterColor, lineWidth: this.highlighterLineWidth, opacity: this.highlighterOpacity };
-        if (this.currentTool === 'eraser') return { lineWidth: this.eraserWidth }; // پاک کن فقط به lineWidth نیاز دارد
+        if (this.currentTool === 'eraser') return { lineWidth: this.eraserWidth };
         return {};
     }
 
@@ -360,151 +369,82 @@ class AnnotationApp {
         this.renderVisibleCanvas(); 
     }
     
-    // ---------- BEGIN MODIFIED TOUCH HANDLERS ----------
     handleTouchStart(event) {
         if (!this.noteModeActive) return;
 
-        // اگر رویداد لمسی روی بوم باشد و حالت یادداشت فعال باشد، از رفتار پیش‌فرض مرورگر جلوگیری کنید.
-        // این برای مدیریت ژست‌های سفارشی مانند ضربه دو انگشتی حیاتی است.
-        if (event.target === this.canvas) {
-            event.preventDefault();
-        }
-
-        const numTouches = event.touches.length;
-        // console.log(`TouchStart: ${numTouches} touches, isTwoFingerActive: ${this.isTwoFingerActive}`);
-
-        if (numTouches === 2) {
+        if (event.touches.length === 2) {
             this.isTwoFingerActive = true;
-            this.isDrawing = false; // هرگونه عملیات رسم تک انگشتی را متوقف کنید
-
-            // اگر یک رسم تک انگشتی در حال انجام بود و سپس انگشت دوم لمس کرد،
-            // مسیر ناقص تک انگشتی باید دور انداخته شود.
-            if (this.currentPath) {
-                // console.log("TouchStart: Clearing currentPath due to 2-finger touch.");
-                this.currentPath = null;
-                this.cancelRenderVisibleCanvas(); // مهم برای پاک کردن مسیر موقت
-                this.renderVisibleCanvas();     // از روی صفحه نمایش
-            }
-
+            this.isDrawing = false; 
+            this.currentPath = null; 
             this.twoFingerTapData = {
                 startTime: Date.now(),
                 initialPoints: Array.from(event.touches).map(t => ({ clientX: t.clientX, clientY: t.clientY }))
             };
-            // console.log("TouchStart: Initialized twoFingerTapData.");
-        } else if (numTouches === 1 && !this.isTwoFingerActive) {
-            // فقط در صورتی شروع به رسم کنید که شروع یک لمس تکی تمیز باشد،
-            // نه اینکه یک ژست دو انگشتی به تازگی تمام شده و یک انگشت باقی مانده باشد.
-            // console.log("TouchStart: Starting single finger drawing.");
+        } else if (event.touches.length === 1 && !this.isTwoFingerActive) {
+            event.preventDefault(); 
             this.isDrawing = true;
-            const { x, y } = this.getEventCoordinates(event); // اصلاح شده: ارسال خود رویداد
+            const { x, y } = this.getEventCoordinates(event.touches[0]);
             this.currentPath = { tool: this.currentTool, points: [{ x, y }], ...this.getCurrentToolProperties() };
-        } else if (numTouches > 2) {
-            // مدیریت 3 انگشت یا بیشتر: به عنوان چند لمسی رفتار کنید، رسم را متوقف کنید، ضربه را نامعتبر کنید
-            // console.log("TouchStart: More than 2 fingers, treating as multi-touch.");
-            this.isTwoFingerActive = true; // یا یک وضعیت جدید مانند isMultiFingerActive
+        } else if (event.touches.length > 2) {
+            this.isTwoFingerActive = true; 
             this.isDrawing = false;
             this.currentPath = null;
-            this.twoFingerTapData = null; // این یک ضربه دو انگشتی نیست
-            this.cancelRenderVisibleCanvas();
-            this.renderVisibleCanvas();
         }
     }
 
     handleTouchMove(event) {
         if (!this.noteModeActive) return;
 
-        if (event.target === this.canvas) {
-            event.preventDefault();
-        }
-
-        const numTouches = event.touches.length;
-        // console.log(`TouchMove: ${numTouches} touches, isDrawing: ${this.isDrawing}, isTwoFingerActive: ${this.isTwoFingerActive}`);
-
-
-        if (this.isTwoFingerActive && numTouches === 2) {
+        if (this.isTwoFingerActive && event.touches.length === 2) {
             if (this.twoFingerTapData) {
                 const currentPoints = Array.from(event.touches).map(t => ({ clientX: t.clientX, clientY: t.clientY }));
-                const p0_initial = this.twoFingerTapData.initialPoints[0];
-                const p1_initial = this.twoFingerTapData.initialPoints[1];
-                const c0_current = currentPoints[0];
-                const c1_current = currentPoints[1];
+                const p0 = this.twoFingerTapData.initialPoints[0];
+                const p1 = this.twoFingerTapData.initialPoints[1];
+                const c0 = currentPoints[0];
+                const c1 = currentPoints[1];
 
-                const dist0 = Math.hypot(c0_current.clientX - p0_initial.clientX, c0_current.clientY - p0_initial.clientY);
-                const dist1 = Math.hypot(c1_current.clientX - p1_initial.clientX, c1_current.clientY - p1_initial.clientY);
-
-                if (dist0 > this.TAP_MOVEMENT_THRESHOLD || dist1 > this.TAP_MOVEMENT_THRESHOLD) {
-                    // console.log("TouchMove: Two-finger movement detected, invalidating tap.");
-                    this.twoFingerTapData = null; // حرکت تشخیص داده شد، ضربه نیست
+                if (Math.hypot(c0.clientX - p0.clientX, c0.clientY - p0.clientY) > this.TAP_MOVEMENT_THRESHOLD ||
+                    Math.hypot(c1.clientX - p1.clientX, c1.clientY - p1.clientY) > this.TAP_MOVEMENT_THRESHOLD) {
+                    this.twoFingerTapData = null; 
                 }
             }
-        } else if (this.isDrawing && !this.isTwoFingerActive && numTouches === 1) {
-            const { x, y } = this.getEventCoordinates(event); // اصلاح شده: ارسال خود رویداد
+        } else if (this.isDrawing && !this.isTwoFingerActive && event.touches.length === 1) {
+            event.preventDefault(); 
+            const { x, y } = this.getEventCoordinates(event.touches[0]);
             this.addPointToCurrentPath(x, y);
             this.requestRenderVisibleCanvas();
-        } else if (this.isTwoFingerActive && numTouches !== 2) {
-            // تعداد لمس‌ها در حین ژستی که دو انگشتی در نظر گرفته شده بود، تغییر کرد
-            // console.log("TouchMove: Number of touches changed during two-finger gesture, invalidating tap.");
-            this.twoFingerTapData = null; // ضربه را نامعتبر کنید
-            this.isDrawing = false; // اطمینان حاصل کنید که رسم خاموش است
         }
     }
 
     handleTouchEnd(event) {
         if (!this.noteModeActive) return;
-        // event.preventDefault() معمولاً در touchend لازم نیست.
-
-        const numRemainingTouches = event.touches.length;
-        // console.log(`TouchEnd: ${numRemainingTouches} remaining touches, isTwoFingerActive: ${this.isTwoFingerActive}, wasDrawing: ${this.isDrawing}`);
 
         if (this.isTwoFingerActive) {
-            // این بلوک پایان ژستی را مدیریت می‌کند که *به عنوان* دو انگشتی شروع شده است
-            if (this.twoFingerTapData && numRemainingTouches === 0) { // هر دو انگشت برداشته شدند
+            if (this.twoFingerTapData && event.touches.length === 0) { 
                 const duration = Date.now() - this.twoFingerTapData.startTime;
-                if (duration < this.TAP_DURATION_THRESHOLD) {
-                    console.log("AnnotationApp: Two-finger tap detected for undo.");
+                if (duration < this.TAP_DURATION_THRESHOLD) { 
                     this.undoLastDrawing();
-                } else {
-                    // console.log("TouchEnd: Two-finger interaction was too long for a tap or fingers moved too much.");
                 }
-            } else if (this.twoFingerTapData && numRemainingTouches > 0) {
-                // console.log("TouchEnd: One finger lifted from a two-finger gesture, tap invalidated.");
             }
             
-            // وضعیت دو انگشتی را بازنشانی کنید اگر تمام انگشتان درگیر در ژست برداشته شوند،
-            // یا اگر تعداد انگشتان به طور قابل توجهی تغییر کند و ژست را بشکند.
-            if (numRemainingTouches < 2) {
-                // console.log("TouchEnd: Resetting two-finger active state.");
+            if (event.touches.length < 2) { 
                 this.isTwoFingerActive = false;
                 this.twoFingerTapData = null;
             }
-            
             this.isDrawing = false; 
-            this.currentPath = null; 
+            this.currentPath = null;
             this.cancelRenderVisibleCanvas();
             this.renderVisibleCanvas(); 
             return; 
         }
 
-        // منطق رسم تک انگشتی (isTwoFingerActive برابر false است)
         if (this.isDrawing) {
-            if (numRemainingTouches === 0) { // اگر انگشت رسم کننده برداشته شد
-                // console.log("TouchEnd: Committing single finger drawing.");
-                this.commitCurrentPath();
-            } else {
-                // console.log("TouchEnd: Drawing was active, but not all fingers lifted. Path not committed here.");
-            }
+          this.commitCurrentPath();
         } else if (this.currentPath) { 
-            // مسیر وجود داشت (مثلاً از یک ضربه یا یک رسم ناقص) اما به طور فعال رسم نمی‌شد.
-            // console.log("TouchEnd: Clearing non-drawing currentPath.");
             this.currentPath = null; 
             this.renderVisibleCanvas();
         }
-        // اگر isDrawing پس از commitCurrentPath به false تنظیم شده باشد، این شرط دیگر برقرار نیست.
-        // اطمینان از اینکه isDrawing پس از commitCurrentPath به درستی مدیریت می‌شود.
-        // commitCurrentPath در حال حاضر this.isDrawing = false را انجام می‌دهد.
     }
-    // ---------- END MODIFIED TOUCH HANDLERS ----------
-
 
     handleMouseDown(event) {
         if (this.isTwoFingerActive || !this.noteModeActive || (event.button && event.button !== 0)) return;
@@ -538,9 +478,6 @@ class AnnotationApp {
             this.redrawCommittedDrawings();
             this.renderVisibleCanvas();
             this.saveDrawings();
-            console.log("AnnotationApp: Last drawing undone.");
-        } else {
-            console.log("AnnotationApp: No drawings to undo.");
         }
     }
 
@@ -555,7 +492,6 @@ class AnnotationApp {
 
                 for (const pathPoint of drawing.points) {
                     const distance = Math.hypot(eraserPoint.x - pathPoint.x, eraserPoint.y - pathPoint.y);
-                    // آستانه برخورد باید ترکیبی از ضخامت رسم و پاک‌کن باشد
                     const collisionThreshold = (drawing.lineWidth / 2) + (this.eraserWidth / 2);
                     if (distance < collisionThreshold) {
                         drawingsToDelete.add(drawing);
@@ -571,7 +507,6 @@ class AnnotationApp {
     }
 
     resizeCanvases() {
-        // اطمینان از اینکه targetContainer والد بوم‌ها است و ابعاد صحیحی دارد
         const width = this.targetContainer.scrollWidth;
         const height = this.targetContainer.scrollHeight;
 
@@ -590,7 +525,7 @@ class AnnotationApp {
     redrawCommittedDrawings() {
         this.committedCtx.clearRect(0, 0, this.committedCanvas.width, this.committedCanvas.height);
         this.drawings.forEach(path => {
-            if (path.tool !== 'eraser') { // مسیرهای پاک‌کن را دوباره رسم نکنید
+            if (path.tool !== 'eraser') {
                 this._drawSinglePath(path, this.committedCtx);
             }
         });
@@ -601,7 +536,6 @@ class AnnotationApp {
         if (this.committedCanvas.width > 0 && this.committedCanvas.height > 0) {
             this.ctx.drawImage(this.committedCanvas, 0, 0);
         }
-        // فقط مسیر فعلی را رسم کنید اگر در حال رسم فعال هستیم و ژست دو انگشتی فعال نیست
         if (this.currentPath && this.isDrawing && !this.isTwoFingerActive) {
             this._drawSinglePath(this.currentPath, this.ctx);
         }
@@ -614,17 +548,16 @@ class AnnotationApp {
         context.lineCap = 'round';
         context.lineJoin = 'round';
 
-        // نمایش بصری برای پاک‌کن در حین رسم (اختیاری)
         if (path.tool === 'eraser' && this.isDrawing && path === this.currentPath) {
-            context.strokeStyle = 'rgba(128, 128, 128, 0.5)'; // خاکستری نیمه‌شفاف برای نشانگر پاک‌کن
-            context.lineWidth = this.eraserWidth; 
+            context.strokeStyle = 'rgba(200, 0, 0, 0.5)'; 
+            context.lineWidth = 2; 
             context.globalAlpha = 0.5;
         } else if (path.tool !== 'eraser') { 
             context.strokeStyle = path.color;
             context.lineWidth = path.lineWidth;
             context.globalAlpha = path.opacity; 
         } else {
-            return; // مسیرهای پاک‌کن ذخیره شده را رسم نکنید (آنها فقط برای حذف استفاده می‌شوند)
+            return; 
         }
 
         if (path.points.length > 0) {
@@ -634,7 +567,7 @@ class AnnotationApp {
             }
             context.stroke();
         }
-        context.globalAlpha = 1.0; // بازگرداندن آلفا به حالت پیش‌فرض
+        context.globalAlpha = 1.0; 
     }
 
     selectTool(toolName) {
@@ -667,7 +600,6 @@ class AnnotationApp {
 
     saveDrawings() {
         try {
-            // فقط مسیرهایی که ابزار پاک‌کن نیستند را ذخیره کنید
             const drawingsToSave = this.drawings.filter(path => path.tool !== 'eraser');
             localStorage.setItem(this.storageKey, JSON.stringify(drawingsToSave));
         } catch (error) {
@@ -681,16 +613,11 @@ class AnnotationApp {
         if (savedData) {
             try {
                 this.drawings = JSON.parse(savedData);
-                // اطمینان از وجود خصوصیات پیش‌فرض برای سازگاری با نسخه‌های قدیمی‌تر
                 this.drawings.forEach(path => {
                     path.opacity = path.opacity !== undefined ? path.opacity : (path.tool === 'highlighter' ? this.highlighterOpacity : 1.0);
                     path.lineWidth = path.lineWidth !== undefined ? path.lineWidth :
-                                    (path.tool === 'pen' ? this.penLineWidth :
-                                    (path.tool === 'highlighter' ? this.highlighterLineWidth : this.eraserWidth));
-                    // اگر ابزار پاک‌کن به اشتباه ذخیره شده بود، آن را نادیده بگیرید یا تبدیل کنید
-                    if (path.tool === 'eraser') {
-                        // این مسیرها نباید در هنگام بارگذاری مشکل ایجاد کنند زیرا _drawSinglePath آنها را رسم نمی‌کند
-                    }
+                                        (path.tool === 'pen' ? this.penLineWidth :
+                                        (path.tool === 'highlighter' ? this.highlighterLineWidth : this.eraserWidth));
                 });
             } catch (error) {
                 console.error("AnnotationApp: Failed to parse drawings from localStorage:", error);
