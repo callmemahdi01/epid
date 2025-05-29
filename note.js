@@ -22,7 +22,7 @@ class AnnotationApp {
         this.noteModeActive = false;
         this.currentTool = 'pen';
         this.penColor = '#000000';
-        this.penLineWidth = 3;
+        this.penLineWidth = 1;
         this.highlighterColor = '#FFFF00';
         this.highlighterLineWidth = 20;
         this.highlighterOpacity = 0.4;
@@ -38,7 +38,7 @@ class AnnotationApp {
 
         this.icons = {
             pen: '<span class="material-symbols-outlined">stylus_note</span>',
-            highlighter: '<span class="material-symbols-outlined">ink_highlighter</span>',
+            highlighter: '<span class="material-symbols-outlined">format_ink_highlighter</span>',
             eraser: '<span class="material-symbols-outlined">ink_eraser</span>'
         };
 
