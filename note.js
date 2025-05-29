@@ -1,4 +1,4 @@
-// annotation-module-optimized.js
+// annotation-module.js
 class AnnotationApp {
     constructor(targetContainerSelector) {
         this.targetContainer = document.querySelector(targetContainerSelector);
@@ -10,13 +10,14 @@ class AnnotationApp {
             this.targetContainer.style.position = 'relative';
         }
 
-        // Canvas elements
+        // Visible canvas
         this.canvas = null;
         this.ctx = null;
+
+        // Offscreen canvas for committed drawings
         this.committedCanvas = null;
         this.committedCtx = null;
 
-        // Drawing state
         this.isDrawing = false;
         this.noteModeActive = false;
         this.currentTool = 'pen';
@@ -29,25 +30,17 @@ class AnnotationApp {
         this.currentPath = null;
         this.drawings = [];
 
-        // Performance optimizations
+        // For requestAnimationFrame
         this.animationFrameRequestId = null;
-        this.lastMousePosition = { x: 0, y: 0 };
-        this.minDistanceThreshold = 2; // Minimum distance between points
-        this.renderBatch = [];
-        this.maxBatchSize = 10;
-        this.lastRenderTime = 0;
-        this.renderInterval = 16; // ~60fps
 
-        // Storage
         const baseStorageKey = 'pageAnnotations';
         const pageIdentifier = window.location.pathname.replace(/[^a-zA-Z0-9_-]/g, '_');
         this.storageKey = `${baseStorageKey}_${pageIdentifier}`;
 
-        // Optimized icons (using simpler paths)
         this.icons = {
-            pen: '<svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z"/></svg>',
-            highlighter: '<svg viewBox="0 0 24 24"><path d="M19.44 5.3L17.32 3.18c-.6-.6-1.59-.59-2.2.03l-1.63 1.63L18 9.28l1.47-1.47c.6-.61.61-1.59.03-2.2l-.06-.06zm-3.66 4.14L5.28 20H2v-3.28l10.5-10.5 3.28 3.28z"/></svg>',
-            eraser: '<svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>'
+            pen: '<svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>',
+            highlighter: '<svg viewBox="0 0 24 24"><path d="M19.44 5.3L17.32 3.18c-.6-.6-1.59-.59-2.2.03l-1.63 1.63L18 9.28l1.47-1.47c.6-.61.61-1.59.03-2.2l-.06-.06zm-3.66 4.14L5.28 20H2v-3.28l10.5-10.5 3.28 3.28zM4 18.72V20h1.28l.99-.99-1.28-1.28-.99.99z"/></svg>',
+            eraser: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"></path></svg>'
         };
 
         if(this.targetContainer) {
@@ -62,383 +55,18 @@ class AnnotationApp {
         this.loadDrawings();
         this.resizeCanvases();
         this.selectTool('pen');
-        this.precompileRenderingContext();
-        this.initializeWorker();
-    }
-
-    // Pre-compile rendering context for better performance
-    precompileRenderingContext() {
-        this.ctx.lineCap = 'round';
-        this.ctx.lineJoin = 'round';
-        this.committedCtx.lineCap = 'round';
-        this.committedCtx.lineJoin = 'round';
-    }
-
-    // Initialize Web Worker for heavy computations (if supported)
-    initializeWorker() {
-        if (typeof Worker !== 'undefined') {
-            try {
-                const workerCode = `
-                    self.onmessage = function(e) {
-                        const { type, data } = e.data;
-                        
-                        if (type === 'OPTIMIZE_PATH') {
-                            const optimizedPath = optimizePath(data.points, data.threshold);
-                            self.postMessage({ type: 'PATH_OPTIMIZED', data: optimizedPath });
-                        }
-                        
-                        if (type === 'COLLISION_DETECT') {
-                            const collisions = detectCollisions(data.eraserPoints, data.drawings, data.threshold);
-                            self.postMessage({ type: 'COLLISIONS_DETECTED', data: collisions });
-                        }
-                    };
-                    
-                    function optimizePath(points, threshold) {
-                        if (points.length < 3) return points;
-                        
-                        const optimized = [points[0]];
-                        let lastPoint = points[0];
-                        
-                        for (let i = 1; i < points.length - 1; i++) {
-                            const current = points[i];
-                            const distance = Math.sqrt(
-                                Math.pow(current.x - lastPoint.x, 2) + 
-                                Math.pow(current.y - lastPoint.y, 2)
-                            );
-                            
-                            if (distance >= threshold) {
-                                optimized.push(current);
-                                lastPoint = current;
-                            }
-                        }
-                        
-                        optimized.push(points[points.length - 1]);
-                        return optimized;
-                    }
-                    
-                    function detectCollisions(eraserPoints, drawings, eraserWidth) {
-                        const toDelete = [];
-                        
-                        for (let drawingIndex = 0; drawingIndex < drawings.length; drawingIndex++) {
-                            const drawing = drawings[drawingIndex];
-                            if (drawing.tool === 'eraser') continue;
-                            
-                            let shouldDelete = false;
-                            for (const eraserPoint of eraserPoints) {
-                                for (const pathPoint of drawing.points) {
-                                    const distance = Math.sqrt(
-                                        Math.pow(eraserPoint.x - pathPoint.x, 2) + 
-                                        Math.pow(eraserPoint.y - pathPoint.y, 2)
-                                    );
-                                    
-                                    const collisionThreshold = (drawing.lineWidth / 2) + (eraserWidth / 2);
-                                    if (distance < collisionThreshold) {
-                                        shouldDelete = true;
-                                        break;
-                                    }
-                                }
-                                if (shouldDelete) break;
-                            }
-                            
-                            if (shouldDelete) {
-                                toDelete.push(drawingIndex);
-                            }
-                        }
-                        
-                        return toDelete;
-                    }
-                `;
-                
-                const blob = new Blob([workerCode], { type: 'application/javascript' });
-                this.worker = new Worker(URL.createObjectURL(blob));
-                
-                this.worker.onmessage = (e) => {
-                    const { type, data } = e.data;
-                    
-                    if (type === 'PATH_OPTIMIZED' && this.currentPath) {
-                        this.currentPath.points = data;
-                        this.scheduleRender();
-                    }
-                    
-                    if (type === 'COLLISIONS_DETECTED') {
-                        this.handleCollisionResults(data);
-                    }
-                };
-            } catch (error) {
-                console.warn('Web Worker not available, using fallback methods');
-                this.worker = null;
-            }
-        }
     }
 
     createCanvases() {
         this.canvas = document.createElement('canvas'); 
         this.canvas.id = 'annotationCanvas';
-        
-        // Performance optimization: disable image smoothing for better performance
-        this.canvas.style.imageRendering = 'pixelated';
-        this.canvas.style.willChange = 'transform';
-        
         this.targetContainer.appendChild(this.canvas); 
-        this.ctx = this.canvas.getContext('2d', { 
-            alpha: true,
-            desynchronized: true, // Enable low-latency rendering
-            powerPreference: 'high-performance'
-        });
+        this.ctx = this.canvas.getContext('2d');
 
         this.committedCanvas = document.createElement('canvas');
-        this.committedCtx = this.committedCanvas.getContext('2d', { 
-            alpha: true,
-            willReadFrequently: true
-        });
+        this.committedCtx = this.committedCanvas.getContext('2d');
     }
 
-    // Optimized event coordinate calculation with caching
-    getEventCoordinates(event) {
-        const rect = this.canvas.getBoundingClientRect();
-        let x, y;
-        
-        if (event.touches && event.touches.length > 0) {
-            x = event.touches[0].clientX - rect.left; 
-            y = event.touches[0].clientY - rect.top;
-        } else {
-            x = event.clientX - rect.left; 
-            y = event.clientY - rect.top;
-        }
-        
-        // Use integer coordinates for better performance
-        return { x: Math.round(x), y: Math.round(y) };
-    }
-
-    handleStart(event) {
-        if (!this.noteModeActive || (event.touches && event.touches.length > 1)) return;
-        event.preventDefault(); 
-        
-        this.isDrawing = true;
-        const { x, y } = this.getEventCoordinates(event);
-        this.lastMousePosition = { x, y };
-        
-        this.currentPath = { tool: this.currentTool, points: [{ x, y }] };
-        
-        if (this.currentTool === 'pen') {
-            this.currentPath.color = this.penColor; 
-            this.currentPath.lineWidth = this.penLineWidth; 
-            this.currentPath.opacity = 1.0;
-        } else if (this.currentTool === 'highlighter') {
-            this.currentPath.color = this.highlighterColor; 
-            this.currentPath.lineWidth = this.highlighterLineWidth; 
-            this.currentPath.opacity = this.highlighterOpacity;
-        } else if (this.currentTool === 'eraser') {
-            this.currentPath.lineWidth = this.eraserWidth;
-        }
-    }
-
-    handleMove(event) {
-        if (!this.isDrawing || !this.noteModeActive || (event.touches && event.touches.length > 1)) return;
-        event.preventDefault();
-        
-        const { x, y } = this.getEventCoordinates(event);
-        
-        // Distance-based filtering to reduce points
-        const distance = Math.sqrt(
-            Math.pow(x - this.lastMousePosition.x, 2) + 
-            Math.pow(y - this.lastMousePosition.y, 2)
-        );
-        
-        if (distance >= this.minDistanceThreshold) {
-            this.lastMousePosition = { x, y };
-            
-            if (this.currentPath) {
-                this.currentPath.points.push({ x, y });
-                
-                // Use Web Worker for path optimization if available
-                if (this.worker && this.currentPath.points.length > 10) {
-                    this.worker.postMessage({
-                        type: 'OPTIMIZE_PATH',
-                        data: {
-                            points: this.currentPath.points,
-                            threshold: this.minDistanceThreshold
-                        }
-                    });
-                } else {
-                    this.scheduleRender();
-                }
-            }
-        }
-    }
-
-    // Improved rendering scheduling
-    scheduleRender() {
-        if (this.animationFrameRequestId === null) {
-            this.animationFrameRequestId = requestAnimationFrame((timestamp) => {
-                if (timestamp - this.lastRenderTime >= this.renderInterval) {
-                    this.renderVisibleCanvas();
-                    this.lastRenderTime = timestamp;
-                }
-                this.animationFrameRequestId = null;
-            });
-        }
-    }
-
-    handleEnd(mouseLeftCanvas = false) {
-        if (this.animationFrameRequestId !== null) {
-            cancelAnimationFrame(this.animationFrameRequestId);
-            this.animationFrameRequestId = null;
-        }
-
-        if (mouseLeftCanvas && !this.isDrawing) return;
-        
-        if (this.isDrawing) {
-            this.isDrawing = false;
-            
-            if (this.currentPath && this.currentPath.points.length > 1) {
-                if (this.currentTool === 'eraser') { 
-                    this.eraseStrokesOptimized(); 
-                } else { 
-                    this.drawings.push(this.currentPath); 
-                }
-                this.redrawCommittedDrawings();
-                this.saveDrawingsThrottled();
-            }
-            
-            this.currentPath = null; 
-            this.renderVisibleCanvas(); 
-        }
-    }
-
-    // Optimized eraser with Web Worker support
-    eraseStrokesOptimized() {
-        if (!this.currentPath || this.currentPath.points.length === 0) return;
-        
-        if (this.worker) {
-            this.worker.postMessage({
-                type: 'COLLISION_DETECT',
-                data: {
-                    eraserPoints: this.currentPath.points,
-                    drawings: this.drawings,
-                    eraserWidth: this.eraserWidth
-                }
-            });
-        } else {
-            this.eraseStrokes(); // Fallback to original method
-        }
-    }
-
-    handleCollisionResults(toDeleteIndices) {
-        if (toDeleteIndices.length > 0) {
-            // Remove in reverse order to maintain indices
-            toDeleteIndices.sort((a, b) => b - a);
-            for (const index of toDeleteIndices) {
-                this.drawings.splice(index, 1);
-            }
-        }
-    }
-
-    // Original eraser method as fallback
-    eraseStrokes() {
-        if (!this.currentPath || this.currentPath.points.length === 0) return;
-        
-        const drawingsToDelete = new Set();
-        
-        for (const eraserPoint of this.currentPath.points) {
-            for (let i = 0; i < this.drawings.length; i++) {
-                const drawing = this.drawings[i];
-                if (drawingsToDelete.has(drawing) || drawing.tool === 'eraser') continue;
-                
-                for (const pathPoint of drawing.points) {
-                    const distance = Math.sqrt(
-                        Math.pow(eraserPoint.x - pathPoint.x, 2) + 
-                        Math.pow(eraserPoint.y - pathPoint.y, 2)
-                    );
-                    
-                    const collisionThreshold = (drawing.lineWidth / 2) + (this.eraserWidth / 2);
-                    if (distance < collisionThreshold) { 
-                        drawingsToDelete.add(drawing); 
-                        break; 
-                    }
-                }
-            }
-        }
-        
-        if (drawingsToDelete.size > 0) {
-            this.drawings = this.drawings.filter(drawing => !drawingsToDelete.has(drawing));
-        }
-    }
-
-    // Optimized rendering with batch processing
-    renderVisibleCanvas() {
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        
-        if (this.committedCanvas.width > 0 && this.committedCanvas.height > 0) {
-            this.ctx.drawImage(this.committedCanvas, 0, 0);
-        }
-        
-        if (this.currentPath && this.isDrawing) {
-            this._drawSinglePathOptimized(this.currentPath, this.ctx);
-        }
-    }
-
-    // Optimized single path drawing
-    _drawSinglePathOptimized(path, context) {
-        if (!path || path.points.length === 0) return;
-
-        const points = path.points;
-        
-        // Set context properties once
-        context.lineCap = 'round';
-        context.lineJoin = 'round';
-        
-        if (path.tool === 'eraser' && this.isDrawing && path === this.currentPath) { 
-            context.strokeStyle = 'rgba(200, 0, 0, 0.6)'; 
-            context.lineWidth = 2; 
-            context.globalAlpha = 0.6;
-        } else if (path.tool !== 'eraser') { 
-            context.strokeStyle = path.color; 
-            context.lineWidth = path.lineWidth; 
-            context.globalAlpha = path.opacity;
-        } else { 
-            return; 
-        }
-
-        // Use more efficient path drawing for better performance
-        if (points.length > 1) {
-            context.beginPath();
-            context.moveTo(points[0].x, points[0].y);
-            
-            // Use quadratic curves for smoother lines with fewer operations
-            for (let i = 1; i < points.length - 1; i++) {
-                const currentPoint = points[i];
-                const nextPoint = points[i + 1];
-                const midX = (currentPoint.x + nextPoint.x) / 2;
-                const midY = (currentPoint.y + nextPoint.y) / 2;
-                
-                context.quadraticCurveTo(currentPoint.x, currentPoint.y, midX, midY);
-            }
-            
-            // Draw to the last point
-            if (points.length > 1) {
-                const lastPoint = points[points.length - 1];
-                context.lineTo(lastPoint.x, lastPoint.y);
-            }
-            
-            context.stroke();
-        }
-        
-        context.globalAlpha = 1.0;
-    }
-
-    // Throttled save to prevent excessive localStorage writes
-    saveDrawingsThrottled() {
-        if (this.saveTimeout) {
-            clearTimeout(this.saveTimeout);
-        }
-        
-        this.saveTimeout = setTimeout(() => {
-            this.saveDrawings();
-        }, 500); // Save after 500ms of inactivity
-    }
-
-    // Rest of the methods remain the same but with minor optimizations
     _createStyledButton(id, title, innerHTML, className = 'tool-button') {
         const button = document.createElement('button'); 
         button.id = id; 
@@ -450,12 +78,16 @@ class AnnotationApp {
 
     createToolbar() {
         this.masterAnnotationToggleBtn = this._createStyledButton('masterAnnotationToggleBtn', 'NOTE - enable/disable', 'NOTE ✏️', '');
-        this.masterAnnotationToggleBtn.style.cssText = 'position: absolute; top: 5px; right: 5px; z-index: 1000;';
+        this.masterAnnotationToggleBtn.style.top = '5px'; 
+        this.masterAnnotationToggleBtn.style.right = '5px'; 
         this.targetContainer.appendChild(this.masterAnnotationToggleBtn);
 
         this.toolsPanel = document.createElement('div'); 
         this.toolsPanel.id = 'annotationToolsPanel';
-        this.toolsPanel.style.cssText = 'display: none; position: absolute; flex-direction: column; top: 50px; right: 5px; z-index: 1000;';
+        this.toolsPanel.style.display = 'none';
+        this.toolsPanel.style.flexDirection = 'column';
+        this.toolsPanel.style.top = '50px'; 
+        this.toolsPanel.style.right = '5px'; 
 
         const toolsGroup = document.createElement('div'); 
         toolsGroup.className = 'toolbar-group';
@@ -475,8 +107,7 @@ class AnnotationApp {
         this.penLineWidthInput = document.createElement('input'); 
         this.penLineWidthInput.type = 'number'; 
         this.penLineWidthInput.value = this.penLineWidth; 
-        this.penLineWidthInput.min = '1'; 
-        this.penLineWidthInput.max = '20'; 
+        this.penLineWidthInput.min = '1'; this.penLineWidthInput.max = '20'; 
         this.penLineWidthInput.title = 'ضخامت قلم';
         penSettingsGroup.append(this.penColorPicker, this.penLineWidthInput);
         this.toolsPanel.appendChild(penSettingsGroup);
@@ -517,18 +148,12 @@ class AnnotationApp {
     }
 
     addEventListeners() {
-        // Throttled resize handler
-        let resizeTimeout;
-        window.addEventListener('resize', () => {
-            if (resizeTimeout) clearTimeout(resizeTimeout);
-            resizeTimeout = setTimeout(() => this.resizeCanvases(), 100);
-        });
+        window.addEventListener('resize', () => this.resizeCanvases());
 
-        // Optimized touch events with passive where possible
         this.canvas.addEventListener('touchstart', (e) => this.handleStart(e), { passive: false });
         this.canvas.addEventListener('touchmove', (e) => this.handleMove(e), { passive: false });
-        this.canvas.addEventListener('touchend', () => this.handleEnd(), { passive: true });
-        this.canvas.addEventListener('touchcancel', () => this.handleEnd(), { passive: true });
+        this.canvas.addEventListener('touchend', () => this.handleEnd());
+        this.canvas.addEventListener('touchcancel', () => this.handleEnd());
 
         this.canvas.addEventListener('mousedown', (e) => this.handleStart(e));
         this.canvas.addEventListener('mousemove', (e) => this.handleMove(e));
@@ -552,28 +177,123 @@ class AnnotationApp {
         this.noteModeActive = !this.noteModeActive;
         if (this.noteModeActive) {
             this.canvas.style.pointerEvents = 'auto';
-            document.body.classList.add('annotation-active');
-            this.targetContainer.classList.add('annotation-active');
-            this.masterAnnotationToggleBtn.textContent = 'NOTE ✏️ (فعال)';
-            this.masterAnnotationToggleBtn.classList.add('active');
+            document.body.classList.add('annotation-active'); // Correct: Add class when active
+            this.targetContainer.classList.add('annotation-active'); // Correct: Add class when active
+            this.masterAnnotationToggleBtn.textContent = 'NOTE ✏️ (فعال)'; // Indicates action to disable
+            this.masterAnnotationToggleBtn.classList.add('active'); // Visually show it's active
             this.toolsPanel.style.display = 'flex';
             if (!this.currentTool) this.selectTool('pen');
         } else {
             this.canvas.style.pointerEvents = 'none';
-            document.body.classList.remove('annotation-active');
-            this.targetContainer.classList.remove('annotation-active');
-            this.masterAnnotationToggleBtn.textContent = 'NOTE ✏️ (غیرفعال)';
-            this.masterAnnotationToggleBtn.classList.remove('active');
+            document.body.classList.remove('annotation-active'); // Correct: Remove class when inactive
+            this.targetContainer.classList.remove('annotation-active'); // Correct: Remove class when inactive
+            this.masterAnnotationToggleBtn.textContent = 'NOTE ✏️ (غیرفعال)'; // Indicates action to enable
+            this.masterAnnotationToggleBtn.classList.remove('active'); // Visually show it's inactive
             this.toolsPanel.style.display = 'none';
             this.isDrawing = false; 
             this.currentPath = null; 
-            if (this.animationFrameRequestId !== null) {
+            if (this.animationFrameRequestId !== null) { // Cancel any pending frame if disabling
                 cancelAnimationFrame(this.animationFrameRequestId);
                 this.animationFrameRequestId = null;
             }
             this.renderVisibleCanvas(); 
         }
         this.updateToolSettingsVisibility();
+    }
+
+    getEventCoordinates(event) {
+        let x, y; 
+        const rect = this.canvas.getBoundingClientRect();
+        if (event.touches && event.touches.length > 0) {
+            x = event.touches[0].clientX - rect.left; 
+            y = event.touches[0].clientY - rect.top;
+        } else {
+            x = event.clientX - rect.left; 
+            y = event.clientY - rect.top;
+        }
+        return { x, y };
+    }
+
+    handleStart(event) {
+        if (!this.noteModeActive || (event.touches && event.touches.length > 1)) return;
+        event.preventDefault(); 
+        this.isDrawing = true;
+        const { x, y } = this.getEventCoordinates(event);
+        this.currentPath = { tool: this.currentTool, points: [{ x, y }] };
+        if (this.currentTool === 'pen') {
+            this.currentPath.color = this.penColor; 
+            this.currentPath.lineWidth = this.penLineWidth; 
+            this.currentPath.opacity = 1.0;
+        } else if (this.currentTool === 'highlighter') {
+            this.currentPath.color = this.highlighterColor; 
+            this.currentPath.lineWidth = this.highlighterLineWidth; 
+            this.currentPath.opacity = this.highlighterOpacity;
+        } else if (this.currentTool === 'eraser') {
+            this.currentPath.lineWidth = this.eraserWidth;
+        }
+    }
+
+    handleMove(event) {
+        if (!this.isDrawing || !this.noteModeActive || (event.touches && event.touches.length > 1)) return;
+        event.preventDefault();
+        const { x, y } = this.getEventCoordinates(event);
+        if (this.currentPath) {
+            this.currentPath.points.push({ x, y });
+            // Schedule rendering with requestAnimationFrame
+            if (this.animationFrameRequestId === null) {
+                this.animationFrameRequestId = requestAnimationFrame(() => {
+                    this.renderVisibleCanvas();
+                    this.animationFrameRequestId = null; // Reset for next frame
+                });
+            }
+        }
+    }
+
+    handleEnd(mouseLeftCanvas = false) {
+        // Cancel any pending animation frame from handleMove
+        if (this.animationFrameRequestId !== null) {
+            cancelAnimationFrame(this.animationFrameRequestId);
+            this.animationFrameRequestId = null;
+        }
+
+        if (mouseLeftCanvas && !this.isDrawing) return;
+        if (this.isDrawing) {
+            this.isDrawing = false;
+            if (this.currentPath && this.currentPath.points.length > 1) {
+                if (this.currentTool === 'eraser') { 
+                    this.eraseStrokes(); 
+                } else { 
+                    this.drawings.push(this.currentPath); 
+                }
+                this.redrawCommittedDrawings();
+                this.saveDrawings();
+            }
+            this.currentPath = null; 
+            // Ensure final state is rendered immediately after drawing ends
+            this.renderVisibleCanvas(); 
+        }
+    }
+
+    eraseStrokes() {
+        if (!this.currentPath || this.currentPath.points.length === 0) return;
+        const drawingsToDelete = new Set();
+        for (const eraserPoint of this.currentPath.points) {
+            for (let i = 0; i < this.drawings.length; i++) {
+                const drawing = this.drawings[i];
+                if (drawingsToDelete.has(drawing) || drawing.tool === 'eraser') continue;
+                for (const pathPoint of drawing.points) {
+                    const distance = Math.sqrt(Math.pow(eraserPoint.x - pathPoint.x, 2) + Math.pow(eraserPoint.y - pathPoint.y, 2));
+                    const collisionThreshold = (drawing.lineWidth / 2) + (this.eraserWidth / 2);
+                    if (distance < collisionThreshold) { 
+                        drawingsToDelete.add(drawing); 
+                        break; 
+                    }
+                }
+            }
+        }
+        if (drawingsToDelete.size > 0) {
+            this.drawings = this.drawings.filter(drawing => !drawingsToDelete.has(drawing));
+        }
     }
 
     resizeCanvases() {
@@ -595,8 +315,47 @@ class AnnotationApp {
     redrawCommittedDrawings() {
         this.committedCtx.clearRect(0, 0, this.committedCanvas.width, this.committedCanvas.height);
         this.drawings.forEach(path => {
-            this._drawSinglePathOptimized(path, this.committedCtx);
+            this._drawSinglePath(path, this.committedCtx);
         });
+    }
+
+    renderVisibleCanvas() {
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        if (this.committedCanvas.width > 0 && this.committedCanvas.height > 0) {
+            this.ctx.drawImage(this.committedCanvas, 0, 0);
+        }
+        if (this.currentPath && this.isDrawing) { // Only draw currentPath if actively drawing
+            this._drawSinglePath(this.currentPath, this.ctx);
+        }
+    }
+
+    _drawSinglePath(path, context) {
+        if (!path || path.points.length === 0) return;
+
+        context.beginPath(); 
+        context.lineCap = 'round'; 
+        context.lineJoin = 'round';
+
+        if (path.tool === 'eraser' && this.isDrawing && path === this.currentPath) { 
+            context.strokeStyle = 'rgba(200, 0, 0, 0.6)'; 
+            context.lineWidth = 2; 
+            context.globalAlpha = 0.6;
+        } else if (path.tool !== 'eraser') { 
+            context.strokeStyle = path.color; 
+            context.lineWidth = path.lineWidth; 
+            context.globalAlpha = path.opacity;
+        } else { 
+            return; 
+        }
+
+        if (path.points.length > 0) {
+            context.moveTo(path.points[0].x, path.points[0].y);
+            for (let i = 1; i < path.points.length; i++) {
+                context.lineTo(path.points[i].x, path.points[i].y);
+            }
+            context.stroke();
+        }
+        context.globalAlpha = 1.0;
     }
 
     selectTool(toolName) {
@@ -656,20 +415,5 @@ class AnnotationApp {
         }
         this.redrawCommittedDrawings();
         this.renderVisibleCanvas();
-    }
-
-    // Cleanup method
-    destroy() {
-        if (this.worker) {
-            this.worker.terminate();
-        }
-        
-        if (this.animationFrameRequestId) {
-            cancelAnimationFrame(this.animationFrameRequestId);
-        }
-        
-        if (this.saveTimeout) {
-            clearTimeout(this.saveTimeout);
-        }
     }
 }
