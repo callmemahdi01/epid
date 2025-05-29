@@ -238,8 +238,22 @@ class AnnotationApp {
         if (!this.isDrawing || !this.noteModeActive || (event.touches && event.touches.length > 1)) return;
         event.preventDefault();
         const { x, y } = this.getEventCoordinates(event);
+
         if (this.currentPath) {
-            this.currentPath.points.push({ x, y });
+            if (this.currentTool === 'highlighter') {
+                // برای هایلایتر، مسیر همیشه شامل نقطه شروع و نقطه فعلی ماوس است
+                // this.currentPath.points[0] نقطه شروع است که در handleStart تنظیم شده.
+                if (this.currentPath.points.length <= 1) {
+                    // اگر فقط نقطه شروع وجود دارد، نقطه فعلی را به عنوان نقطه دوم اضافه کن
+                    this.currentPath.points.push({ x, y });
+                } else {
+                    // در غیر این صورت، نقطه دوم (نقطه پایان موقت) را با موقعیت فعلی به‌روز کن
+                    this.currentPath.points[1] = { x, y };
+                }
+            } else { // برای قلم و پاک‌کن، تمام نقاط را اضافه کن
+                this.currentPath.points.push({ x, y });
+            }
+
             // Schedule rendering with requestAnimationFrame
             if (this.animationFrameRequestId === null) {
                 this.animationFrameRequestId = requestAnimationFrame(() => {
@@ -258,20 +272,41 @@ class AnnotationApp {
         }
 
         if (mouseLeftCanvas && !this.isDrawing) return;
+
         if (this.isDrawing) {
             this.isDrawing = false;
-            if (this.currentPath && this.currentPath.points.length > 1) {
-                if (this.currentTool === 'eraser') { 
-                    this.eraseStrokes(); 
-                } else { 
-                    this.drawings.push(this.currentPath); 
+            if (this.currentPath && this.currentPath.points.length > 0) {
+                if (this.currentTool === 'highlighter') {
+                    const startPoint = this.currentPath.points[0];
+                    // نقطه پایانی، دومین نقطه در this.currentPath.points خواهد بود
+                    // (که با آخرین handleMove به‌روز شده است) یا اگر حرکتی نبوده، همان نقطه شروع است.
+                    const endPoint = this.currentPath.points.length > 1 ? this.currentPath.points[1] : startPoint;
+
+                    // مسیر نهایی هایلایتر فقط شامل نقطه شروع و پایان است.
+                    this.currentPath.points = [startPoint, endPoint];
+
+                    // اطمینان از تنظیم صحیح مشخصات (باید از handleStart تنظیم شده باشند)
+                    this.currentPath.color = this.highlighterColor;
+                    this.currentPath.lineWidth = this.highlighterLineWidth;
+                    this.currentPath.opacity = this.highlighterOpacity;
+
+                    this.drawings.push(this.currentPath);
+
+                } else if (this.currentTool === 'eraser') {
+                    // پاک‌کن از مسیر کامل نقاط برای بررسی برخورد استفاده می‌کند
+                    this.eraseStrokes();
+                } else { // ابزار قلم
+                    // قلم با استفاده از تمام نقاط جمع‌آوری شده، خطی آزاد رسم می‌کند
+                    if (this.currentPath.points.length > 1) { // جلوگیری از ذخیره نقاط تک کلیک برای قلم
+                        this.drawings.push(this.currentPath);
+                    }
                 }
-                this.redrawCommittedDrawings();
+                this.redrawCommittedDrawings(); // دوباره کشیدن تمام نقاشی‌های دائمی، شامل نقاشی جدید
                 this.saveDrawings();
             }
-            this.currentPath = null; 
+            this.currentPath = null; // پاک کردن مسیر فعلی در حال رسم
             // Ensure final state is rendered immediately after drawing ends
-            this.renderVisibleCanvas(); 
+            this.renderVisibleCanvas(); // پاک کردن نقاشی موقت از بوم قابل مشاهده و نمایش وضعیت نهایی
         }
     }
 
