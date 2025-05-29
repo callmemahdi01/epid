@@ -1,4 +1,5 @@
-// annotation-module-optimized.js
+
+// annotation-module.js
 class AnnotationApp {
     constructor(targetContainerSelector) {
         this.targetContainer = document.querySelector(targetContainerSelector);
@@ -10,19 +11,14 @@ class AnnotationApp {
             this.targetContainer.style.position = 'relative';
         }
 
-        // Canvas segments for lazy loading
-        this.canvasSegments = new Map();
-        this.segmentHeight = 1000; // Height of each canvas segment
-        this.visibleSegments = new Set();
-        
-        // Current active segment for drawing
-        this.activeSegment = null;
-        this.activeCtx = null;
+        // Visible canvas
+        this.canvas = null;
+        this.ctx = null;
 
-        // Viewport tracking
-        this.viewportTop = 0;
-        this.viewportBottom = 0;
-        
+        // Offscreen canvas for committed drawings
+        this.committedCanvas = null;
+        this.committedCtx = null;
+
         this.isDrawing = false;
         this.noteModeActive = false;
         this.currentTool = 'pen';
@@ -35,10 +31,8 @@ class AnnotationApp {
         this.currentPath = null;
         this.drawings = [];
 
-        // Performance optimization
+        // For requestAnimationFrame
         this.animationFrameRequestId = null;
-        this.resizeTimeout = null;
-        this.scrollTimeout = null;
 
         const baseStorageKey = 'pageAnnotations';
         const pageIdentifier = window.location.pathname.replace(/[^a-zA-Z0-9_-]/g, '_');
@@ -56,107 +50,22 @@ class AnnotationApp {
     }
 
     init() {
+        this.createCanvases();
         this.createToolbar();
         this.addEventListeners();
         this.loadDrawings();
-        this.updateViewport();
-        this.createVisibleSegments();
+        this.resizeCanvases();
         this.selectTool('pen');
     }
 
-    // Calculate which segments should be visible based on viewport
-    updateViewport() {
-        const containerRect = this.targetContainer.getBoundingClientRect();
-        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-        
-        this.viewportTop = Math.max(0, scrollTop - containerRect.top);
-        this.viewportBottom = this.viewportTop + window.innerHeight;
-        
-        // Add some buffer for smooth scrolling
-        const buffer = this.segmentHeight;
-        this.viewportTop = Math.max(0, this.viewportTop - buffer);
-        this.viewportBottom = Math.min(this.targetContainer.scrollHeight, this.viewportBottom + buffer);
-    }
+    createCanvases() {
+        this.canvas = document.createElement('canvas'); 
+        this.canvas.id = 'annotationCanvas';
+        this.targetContainer.appendChild(this.canvas); 
+        this.ctx = this.canvas.getContext('2d');
 
-    // Create or show canvas segments that are currently visible
-    createVisibleSegments() {
-        const startSegment = Math.floor(this.viewportTop / this.segmentHeight);
-        const endSegment = Math.floor(this.viewportBottom / this.segmentHeight);
-        
-        const newVisibleSegments = new Set();
-        
-        // Create segments that should be visible
-        for (let i = startSegment; i <= endSegment; i++) {
-            newVisibleSegments.add(i);
-            
-            if (!this.canvasSegments.has(i)) {
-                this.createCanvasSegment(i);
-            } else {
-                // Show existing segment
-                const segment = this.canvasSegments.get(i);
-                segment.canvas.style.display = 'block';
-            }
-        }
-        
-        // Hide segments that are no longer visible
-        for (const segmentIndex of this.visibleSegments) {
-            if (!newVisibleSegments.has(segmentIndex)) {
-                const segment = this.canvasSegments.get(segmentIndex);
-                if (segment) {
-                    segment.canvas.style.display = 'none';
-                }
-            }
-        }
-        
-        this.visibleSegments = newVisibleSegments;
-    }
-
-    createCanvasSegment(segmentIndex) {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        
-        const width = this.targetContainer.scrollWidth;
-        const height = this.segmentHeight;
-        const top = segmentIndex * this.segmentHeight;
-        
-        canvas.width = width;
-        canvas.height = height;
-        canvas.style.width = `${width}px`;
-        canvas.style.height = `${height}px`;
-        canvas.style.position = 'absolute';
-        canvas.style.top = `${top}px`;
-        canvas.style.left = '0';
-        canvas.style.pointerEvents = 'none';
-        canvas.style.zIndex = '1000';
-        canvas.id = `annotationCanvas_${segmentIndex}`;
-        
-        this.targetContainer.appendChild(canvas);
-        
-        const segment = {
-            canvas: canvas,
-            ctx: ctx,
-            index: segmentIndex,
-            top: top,
-            bottom: top + height,
-            drawings: []
-        };
-        
-        this.canvasSegments.set(segmentIndex, segment);
-        
-        // Draw existing annotations for this segment
-        this.redrawSegment(segment);
-        
-        return segment;
-    }
-
-    getSegmentFromY(y) {
-        const segmentIndex = Math.floor(y / this.segmentHeight);
-        
-        if (!this.canvasSegments.has(segmentIndex)) {
-            this.createCanvasSegment(segmentIndex);
-        }
-        
-        return this.canvasSegments.get(segmentIndex);
+        this.committedCanvas = document.createElement('canvas');
+        this.committedCtx = this.committedCanvas.getContext('2d');
     }
 
     _createStyledButton(id, title, innerHTML, className = 'tool-button') {
@@ -170,20 +79,16 @@ class AnnotationApp {
 
     createToolbar() {
         this.masterAnnotationToggleBtn = this._createStyledButton('masterAnnotationToggleBtn', 'NOTE - enable/disable', 'NOTE ✏️', '');
-        this.masterAnnotationToggleBtn.style.position = 'fixed';
         this.masterAnnotationToggleBtn.style.top = '5px'; 
         this.masterAnnotationToggleBtn.style.right = '5px'; 
-        this.masterAnnotationToggleBtn.style.zIndex = '1001';
         this.targetContainer.appendChild(this.masterAnnotationToggleBtn);
 
         this.toolsPanel = document.createElement('div'); 
         this.toolsPanel.id = 'annotationToolsPanel';
         this.toolsPanel.style.display = 'none';
         this.toolsPanel.style.flexDirection = 'column';
-        this.toolsPanel.style.position = 'fixed';
         this.toolsPanel.style.top = '50px'; 
         this.toolsPanel.style.right = '5px'; 
-        this.toolsPanel.style.zIndex = '1001';
 
         const toolsGroup = document.createElement('div'); 
         toolsGroup.className = 'toolbar-group';
@@ -244,28 +149,17 @@ class AnnotationApp {
     }
 
     addEventListeners() {
-        // Optimized resize handler
-        window.addEventListener('resize', () => {
-            clearTimeout(this.resizeTimeout);
-            this.resizeTimeout = setTimeout(() => this.handleResize(), 100);
-        });
+        window.addEventListener('resize', () => this.resizeCanvases());
 
-        // Optimized scroll handler
-        window.addEventListener('scroll', () => {
-            clearTimeout(this.scrollTimeout);
-            this.scrollTimeout = setTimeout(() => this.handleScroll(), 16); // ~60fps
-        }, { passive: true });
+        this.canvas.addEventListener('touchstart', (e) => this.handleStart(e), { passive: false });
+        this.canvas.addEventListener('touchmove', (e) => this.handleMove(e), { passive: false });
+        this.canvas.addEventListener('touchend', () => this.handleEnd());
+        this.canvas.addEventListener('touchcancel', () => this.handleEnd());
 
-        // Drawing events - delegate to container
-        this.targetContainer.addEventListener('touchstart', (e) => this.handleStart(e), { passive: false });
-        this.targetContainer.addEventListener('touchmove', (e) => this.handleMove(e), { passive: false });
-        this.targetContainer.addEventListener('touchend', () => this.handleEnd());
-        this.targetContainer.addEventListener('touchcancel', () => this.handleEnd());
-
-        this.targetContainer.addEventListener('mousedown', (e) => this.handleStart(e));
-        this.targetContainer.addEventListener('mousemove', (e) => this.handleMove(e));
-        this.targetContainer.addEventListener('mouseup', () => this.handleEnd());
-        this.targetContainer.addEventListener('mouseleave', () => this.handleEnd(true));
+        this.canvas.addEventListener('mousedown', (e) => this.handleStart(e));
+        this.canvas.addEventListener('mousemove', (e) => this.handleMove(e));
+        this.canvas.addEventListener('mouseup', () => this.handleEnd());
+        this.canvas.addEventListener('mouseleave', () => this.handleEnd(true));
 
         this.masterAnnotationToggleBtn.addEventListener('click', () => this.toggleMasterAnnotationMode());
 
@@ -280,66 +174,43 @@ class AnnotationApp {
         this.highlighterLineWidthInput.addEventListener('input', (e) => { this.highlighterLineWidth = parseInt(e.target.value, 10);});
     }
 
-    handleResize() {
-        // Recreate all visible segments with new dimensions
-        const width = this.targetContainer.scrollWidth;
-        
-        for (const [segmentIndex, segment] of this.canvasSegments) {
-            segment.canvas.width = width;
-            segment.canvas.style.width = `${width}px`;
-            this.redrawSegment(segment);
-        }
-    }
-
-    handleScroll() {
-        this.updateViewport();
-        this.createVisibleSegments();
-    }
-
     toggleMasterAnnotationMode() {
         this.noteModeActive = !this.noteModeActive;
         if (this.noteModeActive) {
-            // Enable pointer events on all canvas segments
-            for (const [_, segment] of this.canvasSegments) {
-                segment.canvas.style.pointerEvents = 'auto';
-            }
-            document.body.classList.add('annotation-active');
-            this.targetContainer.classList.add('annotation-active');
-            this.masterAnnotationToggleBtn.textContent = 'NOTE ✏️ (فعال)';
-            this.masterAnnotationToggleBtn.classList.add('active');
+            this.canvas.style.pointerEvents = 'auto';
+            document.body.classList.add('annotation-active'); // Correct: Add class when active
+            this.targetContainer.classList.add('annotation-active'); // Correct: Add class when active
+            this.masterAnnotationToggleBtn.textContent = 'NOTE ✏️ (فعال)'; // Indicates action to disable
+            this.masterAnnotationToggleBtn.classList.add('active'); // Visually show it's active
             this.toolsPanel.style.display = 'flex';
             if (!this.currentTool) this.selectTool('pen');
         } else {
-            // Disable pointer events on all canvas segments
-            for (const [_, segment] of this.canvasSegments) {
-                segment.canvas.style.pointerEvents = 'none';
-            }
-            document.body.classList.remove('annotation-active');
-            this.targetContainer.classList.remove('annotation-active');
-            this.masterAnnotationToggleBtn.textContent = 'NOTE ✏️ (غیرفعال)';
-            this.masterAnnotationToggleBtn.classList.remove('active');
+            this.canvas.style.pointerEvents = 'none';
+            document.body.classList.remove('annotation-active'); // Correct: Remove class when inactive
+            this.targetContainer.classList.remove('annotation-active'); // Correct: Remove class when inactive
+            this.masterAnnotationToggleBtn.textContent = 'NOTE ✏️ (غیرفعال)'; // Indicates action to enable
+            this.masterAnnotationToggleBtn.classList.remove('active'); // Visually show it's inactive
             this.toolsPanel.style.display = 'none';
             this.isDrawing = false; 
             this.currentPath = null; 
-            this.activeSegment = null;
-            if (this.animationFrameRequestId !== null) {
+            if (this.animationFrameRequestId !== null) { // Cancel any pending frame if disabling
                 cancelAnimationFrame(this.animationFrameRequestId);
                 this.animationFrameRequestId = null;
             }
+            this.renderVisibleCanvas(); 
         }
         this.updateToolSettingsVisibility();
     }
 
     getEventCoordinates(event) {
         let x, y; 
-        const rect = this.targetContainer.getBoundingClientRect();
-        
+        const rect = this.canvas.getBoundingClientRect();
         if (event.touches && event.touches.length > 0) {
             x = event.touches[0].clientX - rect.left; 
-            y = event.touches[0].clientY - rect.top + (window.pageYOffset || document.documentElement.scrollTop);
+            y = event.touches[0].clientY - rect.top;
         } else {
             x = event.clientX - rect.left; 
-            y = event.clientY - rect.top + (window.pageYOffset || document.documentElement.scrollTop);
+            y = event.clientY - rect.top;
         }
         return { x, y };
     }
@@ -347,19 +218,9 @@ class AnnotationApp {
     handleStart(event) {
         if (!this.noteModeActive || (event.touches && event.touches.length > 1)) return;
         event.preventDefault(); 
-        
         this.isDrawing = true;
         const { x, y } = this.getEventCoordinates(event);
-        
-        // Determine which segment this drawing belongs to
-        this.activeSegment = this.getSegmentFromY(y);
-        
-        this.currentPath = { 
-            tool: this.currentTool, 
-            points: [{ x, y: y - this.activeSegment.top }], // Relative to segment
-            segment: this.activeSegment.index
-        };
-        
+        this.currentPath = { tool: this.currentTool, points: [{ x, y }] };
         if (this.currentTool === 'pen') {
             this.currentPath.color = this.penColor; 
             this.currentPath.lineWidth = this.penLineWidth; 
@@ -376,78 +237,54 @@ class AnnotationApp {
     handleMove(event) {
         if (!this.isDrawing || !this.noteModeActive || (event.touches && event.touches.length > 1)) return;
         event.preventDefault();
-        
         const { x, y } = this.getEventCoordinates(event);
-        
-        if (this.currentPath && this.activeSegment) {
-            // Check if we need to switch segments
-            const newSegment = this.getSegmentFromY(y);
-            if (newSegment.index !== this.activeSegment.index) {
-                // Finish current path and start new one in new segment
-                this.handleEnd();
-                this.handleStart(event);
-                return;
-            }
-            
-            this.currentPath.points.push({ x, y: y - this.activeSegment.top });
-            
+        if (this.currentPath) {
+            this.currentPath.points.push({ x, y });
             // Schedule rendering with requestAnimationFrame
             if (this.animationFrameRequestId === null) {
                 this.animationFrameRequestId = requestAnimationFrame(() => {
-                    this.renderSegment(this.activeSegment);
-                    this.animationFrameRequestId = null;
+                    this.renderVisibleCanvas();
+                    this.animationFrameRequestId = null; // Reset for next frame
                 });
             }
         }
     }
 
     handleEnd(mouseLeftCanvas = false) {
+        // Cancel any pending animation frame from handleMove
         if (this.animationFrameRequestId !== null) {
             cancelAnimationFrame(this.animationFrameRequestId);
             this.animationFrameRequestId = null;
         }
 
         if (mouseLeftCanvas && !this.isDrawing) return;
-        if (this.isDrawing && this.activeSegment) {
+        if (this.isDrawing) {
             this.isDrawing = false;
             if (this.currentPath && this.currentPath.points.length > 1) {
                 if (this.currentTool === 'eraser') { 
                     this.eraseStrokes(); 
                 } else { 
-                    this.drawings.push(this.currentPath);
-                    this.activeSegment.drawings.push(this.currentPath);
+                    this.drawings.push(this.currentPath); 
                 }
-                this.redrawSegment(this.activeSegment);
+                this.redrawCommittedDrawings();
                 this.saveDrawings();
             }
             this.currentPath = null; 
-            this.activeSegment = null;
+            // Ensure final state is rendered immediately after drawing ends
+            this.renderVisibleCanvas(); 
         }
     }
 
     eraseStrokes() {
-        if (!this.currentPath || this.currentPath.points.length === 0 || !this.activeSegment) return;
-        
+        if (!this.currentPath || this.currentPath.points.length === 0) return;
         const drawingsToDelete = new Set();
-        const segmentDrawings = this.activeSegment.drawings;
-        
         for (const eraserPoint of this.currentPath.points) {
-            // Convert eraser point to absolute coordinates for comparison
-            const absoluteEraserY = eraserPoint.y + this.activeSegment.top;
-            
-            for (let i = 0; i < segmentDrawings.length; i++) {
-                const drawing = segmentDrawings[i];
+            for (let i = 0; i < this.drawings.length; i++) {
+                const drawing = this.drawings[i];
                 if (drawingsToDelete.has(drawing) || drawing.tool === 'eraser') continue;
-                
                 for (const pathPoint of drawing.points) {
-                    // Convert path point to absolute coordinates
-                    const absolutePathY = pathPoint.y + this.activeSegment.top;
-                    const distance = Math.sqrt(
-                        Math.pow(eraserPoint.x - pathPoint.x, 2) + 
-                        Math.pow(absoluteEraserY - absolutePathY, 2)
-                    );
+                    const distance = Math.sqrt(Math.pow(eraserPoint.x - pathPoint.x, 2) + Math.pow(eraserPoint.y - pathPoint.y, 2));
                     const collisionThreshold = (drawing.lineWidth / 2) + (this.eraserWidth / 2);
-                    
                     if (distance < collisionThreshold) { 
                         drawingsToDelete.add(drawing); 
                         break; 
@@ -455,28 +292,41 @@ class AnnotationApp {
                 }
             }
         }
-        
         if (drawingsToDelete.size > 0) {
-            this.activeSegment.drawings = segmentDrawings.filter(drawing => !drawingsToDelete.has(drawing));
             this.drawings = this.drawings.filter(drawing => !drawingsToDelete.has(drawing));
         }
     }
 
-    redrawSegment(segment) {
-        segment.ctx.clearRect(0, 0, segment.canvas.width, segment.canvas.height);
-        
-        // Draw all paths that belong to this segment
-        for (const path of segment.drawings) {
-            this._drawSinglePath(path, segment.ctx);
-        }
+    resizeCanvases() {
+        const width = this.targetContainer.scrollWidth;
+        const height = this.targetContainer.scrollHeight;
+
+        this.canvas.width = width; 
+        this.canvas.height = height;
+        this.canvas.style.width = `${width}px`; 
+        this.canvas.style.height = `${height}px`;
+
+        this.committedCanvas.width = width;
+        this.committedCanvas.height = height;
+
+        this.redrawCommittedDrawings();
+        this.renderVisibleCanvas();
     }
 
-    renderSegment(segment) {
-        this.redrawSegment(segment);
-        
-        // Draw current path if it belongs to this segment
-        if (this.currentPath && this.isDrawing && this.activeSegment === segment) {
-            this._drawSinglePath(this.currentPath, segment.ctx);
+    redrawCommittedDrawings() {
+        this.committedCtx.clearRect(0, 0, this.committedCanvas.width, this.committedCanvas.height);
+        this.drawings.forEach(path => {
+            this._drawSinglePath(path, this.committedCtx);
+        });
+    }
+
+    renderVisibleCanvas() {
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        if (this.committedCanvas.width > 0 && this.committedCanvas.height > 0) {
+            this.ctx.drawImage(this.committedCanvas, 0, 0);
+        }
+        if (this.currentPath && this.isDrawing) { // Only draw currentPath if actively drawing
+            this._drawSinglePath(this.currentPath, this.ctx);
         }
     }
 
@@ -528,14 +378,9 @@ class AnnotationApp {
     clearAnnotations() {
         if (confirm('آیا مطمئن هستید که می‌خواهید تمام یادداشت‌ها و هایلایت‌ها را پاک کنید؟')) {
             this.drawings = []; 
-            
-            // Clear all segments
-            for (const [_, segment] of this.canvasSegments) {
-                segment.drawings = [];
-                this.redrawSegment(segment);
-            }
-            
             localStorage.removeItem(this.storageKey);
+            this.redrawCommittedDrawings();
+            this.renderVisibleCanvas();
         }
     }
 
@@ -555,24 +400,12 @@ class AnnotationApp {
         if (savedData) {
             try {
                 this.drawings = JSON.parse(savedData); 
-                
-                // Organize drawings by segment
-                for (const path of this.drawings) {
+                this.drawings.forEach(path => {
                     path.opacity = path.opacity !== undefined ? path.opacity : (path.tool === 'highlighter' ? this.highlighterOpacity : 1.0);
                     path.lineWidth = path.lineWidth !== undefined ? path.lineWidth : 
                                      (path.tool === 'pen' ? this.penLineWidth : 
                                      (path.tool === 'highlighter' ? this.highlighterLineWidth : this.eraserWidth));
-                    
-                    // Assign to segment if not already assigned
-                    if (path.segment === undefined) {
-                        // For backward compatibility, assume segment 0 for old drawings
-                        path.segment = 0;
-                    }
-                }
-                
-                // Distribute drawings to their respective segments
-                this.redistributeDrawingsToSegments();
-                
+                });
             } catch (error) { 
                 console.error("AnnotationApp: Failed to parse drawings from localStorage:", error); 
                 this.drawings = [];
@@ -581,33 +414,7 @@ class AnnotationApp {
         } else {
             this.drawings = [];
         }
-    }
-
-    redistributeDrawingsToSegments() {
-        // Clear existing segment drawings
-        for (const [_, segment] of this.canvasSegments) {
-            segment.drawings = [];
-        }
-        
-        // Distribute drawings to segments
-        for (const drawing of this.drawings) {
-            const segmentIndex = drawing.segment || 0;
-            
-            if (!this.canvasSegments.has(segmentIndex)) {
-                // Create segment if it doesn't exist
-                this.createCanvasSegment(segmentIndex);
-            }
-            
-            const segment = this.canvasSegments.get(segmentIndex);
-            segment.drawings.push(drawing);
-        }
-        
-        // Redraw all visible segments
-        for (const segmentIndex of this.visibleSegments) {
-            const segment = this.canvasSegments.get(segmentIndex);
-            if (segment) {
-                this.redrawSegment(segment);
-            }
-        }
+        this.redrawCommittedDrawings();
+        this.renderVisibleCanvas();
     }
 }
