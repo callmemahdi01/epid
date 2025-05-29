@@ -222,7 +222,7 @@ class AnnotationApp {
             this.canvas.style.pointerEvents = 'none';
             document.body.classList.remove('annotation-active');
             this.targetContainer.classList.remove('annotation-active');
-            this.masterAnnotationToggleBtn.textContent = 'NOTE ✏️ (غیرفعال)';
+            this.masterAnnotationToggleBtn.textContent = 'NOTE ✏️';
             this.masterAnnotationToggleBtn.classList.remove('active');
             this.toolsPanel.style.display = 'none'; // This was in original logic for visibility
             this.isDrawing = false;
