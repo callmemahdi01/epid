@@ -131,6 +131,8 @@ class AnnotationApp {
         this.toolsPanel.style.top = '5px'; // Original style
         this.toolsPanel.style.right = '140px'; // Original style
 
+=======
+>>>>>>> parent of 41a690b (fix bug)
         this.toolsPanel.style.display = 'none'; 
         this.toolsPanel.style.flexDirection = 'column'; 
         this.toolsPanel.style.top = '55px'; 
