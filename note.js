@@ -79,15 +79,19 @@ class AnnotationApp {
         document.body.appendChild(this.virtualCanvasContainer);
     }
 
+
+
     createCanvases() {
         this.canvas = document.createElement('canvas');
         this.canvas.id = 'annotationCanvas';
         this.canvas.style.position = 'absolute';
         this.canvas.style.top = '0';
         this.canvas.style.left = '0';
+        this.canvas.style.zIndex = '1000';
         this.canvas.style.pointerEvents = 'none';
         this.virtualCanvasContainer.appendChild(this.canvas);
         this.ctx = this.canvas.getContext('2d');
+
 
         // Create committed canvas with full document size
         this.committedCanvas = document.createElement('canvas');
@@ -547,3 +551,4 @@ class AnnotationApp {
         this.renderVisibleCanvas();
     }
 }
+
