@@ -32,6 +32,8 @@ body {
 }
 
 .nav-button {
+    position: relative;
+    z-index: 1001;
     font-family: 'Vazirmatn', sans-serif;
     background-color: #4CAF50; /* Primary green */
     color: white;
@@ -287,6 +289,7 @@ footer {
     }
 
     .nav-button {
+        z-index: 1001;
         padding: 10px 15px;
         font-size: 0.95em;
     }
