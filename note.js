@@ -65,19 +65,19 @@ class AnnotationApp {
         this.updateVirtualCanvas();
         this.selectTool('pen');
     }
-
-    createVirtualCanvasContainer() {
-        this.virtualCanvasContainer = document.createElement('div');
-        this.virtualCanvasContainer.style.position = 'fixed';
-        this.virtualCanvasContainer.style.top = '0';
-        this.virtualCanvasContainer.style.left = '0';
-        this.virtualCanvasContainer.style.width = '100vw';
-        this.virtualCanvasContainer.style.height = '100vh';
-        this.virtualCanvasContainer.style.pointerEvents = 'none';
-        this.virtualCanvasContainer.style.zIndex = '1000';
-        this.virtualCanvasContainer.style.overflow = 'hidden';
-        document.body.appendChild(this.virtualCanvasContainer);
-    }
+createVirtualCanvasContainer() {
+    this.virtualCanvasContainer = document.createElement('div');
+    this.virtualCanvasContainer.style.position = 'fixed'; // این 'fixed' مهم است
+    this.virtualCanvasContainer.style.top = '0';
+    this.virtualCanvasContainer.style.left = '0';
+    this.virtualCanvasContainer.style.width = '100vw';
+    this.virtualCanvasContainer.style.height = '100vh';
+    this.virtualCanvasContainer.style.pointerEvents = 'none';
+    this.virtualCanvasContainer.style.zIndex = '1000'; // z-index برای روی هم قرار گرفتن با محتوای targetContainer
+    this.virtualCanvasContainer.style.overflow = 'hidden';
+    // document.body.appendChild(this.virtualCanvasContainer); // خط قبلی
+    this.targetContainer.appendChild(this.virtualCanvasContainer); // خط جدید و صحیح
+}
 
 
 
