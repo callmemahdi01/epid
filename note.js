@@ -669,3 +669,15 @@ class AnnotationApp {
         this.renderVisibleCanvas();
     }
 }
+
+// اضافه کردن فایل note.css
+const localCSS = document.createElement("link");
+localCSS.rel = "stylesheet";
+localCSS.href = "./note.css";
+document.head.appendChild(localCSS);
+
+// اضافه کردن فونت Google Material Symbols
+const googleFont = document.createElement("link");
+googleFont.rel = "stylesheet";
+googleFont.href = "https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined";
+document.head.appendChild(googleFont);
