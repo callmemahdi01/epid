@@ -18,6 +18,15 @@ class AnnotationApp {
         this.committedCanvas = null;
         this.committedCtx = null;
 
+        // Virtual canvas properties
+        this.virtualCanvasContainer = null;
+        this.viewportWidth = 0;
+        this.viewportHeight = 0;
+        this.scrollOffsetX = 0;
+        this.scrollOffsetY = 0;
+        this.totalWidth = 0;
+        this.totalHeight = 0;
+
         this.isDrawing = false;
         this.noteModeActive = false;
         this.currentTool = 'pen';
@@ -48,12 +57,26 @@ class AnnotationApp {
     }
 
     init() {
+        this.createVirtualCanvasContainer();
         this.createCanvases();
         this.createToolbar();
         this.addEventListeners();
         this.loadDrawings();
-        this.resizeCanvases();
+        this.updateVirtualCanvas();
         this.selectTool('pen');
+    }
+
+    createVirtualCanvasContainer() {
+        this.virtualCanvasContainer = document.createElement('div');
+        this.virtualCanvasContainer.style.position = 'fixed';
+        this.virtualCanvasContainer.style.top = '0';
+        this.virtualCanvasContainer.style.left = '0';
+        this.virtualCanvasContainer.style.width = '100vw';
+        this.virtualCanvasContainer.style.height = '100vh';
+        this.virtualCanvasContainer.style.pointerEvents = 'none';
+        this.virtualCanvasContainer.style.zIndex = '1000';
+        this.virtualCanvasContainer.style.overflow = 'hidden';
+        document.body.appendChild(this.virtualCanvasContainer);
     }
 
     createCanvases() {
@@ -62,11 +85,11 @@ class AnnotationApp {
         this.canvas.style.position = 'absolute';
         this.canvas.style.top = '0';
         this.canvas.style.left = '0';
-        this.canvas.style.zIndex = '1000'; // Keep zIndex for layering
         this.canvas.style.pointerEvents = 'none';
-        this.targetContainer.appendChild(this.canvas);
+        this.virtualCanvasContainer.appendChild(this.canvas);
         this.ctx = this.canvas.getContext('2d');
 
+        // Create committed canvas with full document size
         this.committedCanvas = document.createElement('canvas');
         this.committedCtx = this.committedCanvas.getContext('2d');
     }
@@ -77,31 +100,24 @@ class AnnotationApp {
         button.title = title;
         button.className = className;
         if (innerHTML) button.innerHTML = innerHTML;
-        return button; // Reverted to original: no inline styles
+        return button;
     }
 
-
     createToolbar() {
-        this.masterAnnotationToggleBtn = this._createStyledButton('masterAnnotationToggleBtn', 'NOTE - enable/disable annotations', 'NOTE ✏️', ''); // Original className
-        this.masterAnnotationToggleBtn.style.top = '5px'; // Original style
-        this.masterAnnotationToggleBtn.style.right = '5px'; // Original style
-        // Removed: this.masterAnnotationToggleBtn.style.position = 'absolute'; (Let user CSS handle or rely on parent)
-        // Removed: this.masterAnnotationToggleBtn.style.zIndex = '1002';
+        this.masterAnnotationToggleBtn = this._createStyledButton('masterAnnotationToggleBtn', 'NOTE - enable/disable annotations', 'NOTE ✏️', '');
+        this.masterAnnotationToggleBtn.style.top = '5px';
+        this.masterAnnotationToggleBtn.style.right = '5px';
         this.targetContainer.appendChild(this.masterAnnotationToggleBtn);
-
 
         this.toolsPanel = document.createElement('div');
         this.toolsPanel.id = 'annotationToolsPanel';
-        this.toolsPanel.style.display = 'none'; // Original style
-        this.toolsPanel.style.flexDirection = 'column'; // Original style
-        this.toolsPanel.style.top = '45px'; // Original style
-        this.toolsPanel.style.right = '5px'; // Original style
-        // Removed: position, zIndex, backgroundColor, border, borderRadius, padding, boxShadow, gap
+        this.toolsPanel.style.display = 'none';
+        this.toolsPanel.style.flexDirection = 'column';
+        this.toolsPanel.style.top = '45px';
+        this.toolsPanel.style.right = '5px';
 
         const toolsGroup = document.createElement('div');
         toolsGroup.className = 'toolbar-group';
-        // Removed: toolsGroup.style.display = 'flex';
-        // Removed: toolsGroup.style.gap = '5px';
 
         this.penBtn = this._createStyledButton('penBtn', 'قلم', this.icons.pen);
         this.highlighterBtn = this._createStyledButton('highlighterBtn', 'هایلایتر', this.icons.highlighter);
@@ -110,42 +126,31 @@ class AnnotationApp {
         this.toolsPanel.appendChild(toolsGroup);
 
         const penSettingsGroup = document.createElement('div');
-        penSettingsGroup.className = 'toolbar-group setting-group'; // Keep class for user CSS
+        penSettingsGroup.className = 'toolbar-group setting-group';
         penSettingsGroup.id = 'penSettingsGroup';
-        // Removed: penSettingsGroup.style.display = 'flex'; (Handled by updateToolSettingsVisibility)
-        // Removed: penSettingsGroup.style.flexDirection = 'column';
-        // Removed: penSettingsGroup.style.gap = '5px';
 
         const penColorLabel = document.createElement('label');
         this.penColorPicker = document.createElement('input');
         this.penColorPicker.type = 'color';
         this.penColorPicker.value = this.penColor;
-        // Removed: this.penColorPicker.style.marginLeft = '5px';
 
         const penWidthLabel = document.createElement('label');
         this.penLineWidthInput = document.createElement('input');
         this.penLineWidthInput.type = 'number';
         this.penLineWidthInput.value = this.penLineWidth;
         this.penLineWidthInput.min = '1'; this.penLineWidthInput.max = '20';
-        // Removed: this.penLineWidthInput.style.marginLeft = '5px';
-        // Removed: this.penLineWidthInput.style.width = '50px';
 
         penSettingsGroup.append(penColorLabel, this.penColorPicker, penWidthLabel, this.penLineWidthInput);
         this.toolsPanel.appendChild(penSettingsGroup);
 
-
         const highlighterSettingsGroup = document.createElement('div');
-        highlighterSettingsGroup.className = 'toolbar-group setting-group'; // Keep class for user CSS
+        highlighterSettingsGroup.className = 'toolbar-group setting-group';
         highlighterSettingsGroup.id = 'highlighterSettingsGroup';
-        // Removed: highlighterSettingsGroup.style.display = 'none'; (Handled by updateToolSettingsVisibility)
-        // Removed: highlighterSettingsGroup.style.flexDirection = 'column';
-        // Removed: highlighterSettingsGroup.style.gap = '5px';
 
         const highlighterColorLabel = document.createElement('label');
         this.highlighterColorPicker = document.createElement('input');
         this.highlighterColorPicker.type = 'color';
         this.highlighterColorPicker.value = this.highlighterColor;
-        // Removed: this.highlighterColorPicker.style.marginLeft = '5px';
 
         const highlighterWidthLabel = document.createElement('label');
         this.highlighterLineWidthInput = document.createElement('input');
@@ -153,16 +158,12 @@ class AnnotationApp {
         this.highlighterLineWidthInput.value = this.highlighterLineWidth;
         this.highlighterLineWidthInput.min = '5';
         this.highlighterLineWidthInput.max = '50';
-        // Removed: this.highlighterLineWidthInput.style.marginLeft = '5px';
-        // Removed: this.highlighterLineWidthInput.style.width = '50px';
 
         highlighterSettingsGroup.append(highlighterColorLabel, this.highlighterColorPicker, highlighterWidthLabel, this.highlighterLineWidthInput);
         this.toolsPanel.appendChild(highlighterSettingsGroup);
 
-
-        this.clearBtn = this._createStyledButton('clearAnnotationsBtn', 'پاک کردن تمام یادداشت‌ها', 'پاک کردن همه', ''); // Original className
-        this.clearBtn.id = 'clearAnnotationsBtn'; // Original had this
-        // Removed: this.clearBtn.style.marginTop = '10px';
+        this.clearBtn = this._createStyledButton('clearAnnotationsBtn', 'پاک کردن تمام یادداشت‌ها', 'پاک کردن همه', '');
+        this.clearBtn.id = 'clearAnnotationsBtn';
         this.toolsPanel.appendChild(this.clearBtn);
 
         this.targetContainer.appendChild(this.toolsPanel);
@@ -181,9 +182,54 @@ class AnnotationApp {
         }
     }
 
+    updateVirtualCanvas() {
+        // Get viewport dimensions
+        this.viewportWidth = window.innerWidth;
+        this.viewportHeight = window.innerHeight;
+        
+        // Get scroll offset
+        this.scrollOffsetX = window.pageXOffset || document.documentElement.scrollLeft;
+        this.scrollOffsetY = window.pageYOffset || document.documentElement.scrollTop;
+        
+        // Get total document dimensions
+        this.totalWidth = Math.max(
+            document.body.scrollWidth,
+            document.documentElement.scrollWidth,
+            this.targetContainer.scrollWidth
+        );
+        this.totalHeight = Math.max(
+            document.body.scrollHeight,
+            document.documentElement.scrollHeight,
+            this.targetContainer.scrollHeight
+        );
+
+        // Resize canvas to viewport size
+        this.canvas.width = this.viewportWidth;
+        this.canvas.height = this.viewportHeight;
+        this.canvas.style.width = `${this.viewportWidth}px`;
+        this.canvas.style.height = `${this.viewportHeight}px`;
+
+        // Update committed canvas to full document size
+        if (this.committedCanvas.width !== this.totalWidth || this.committedCanvas.height !== this.totalHeight) {
+            const oldWidth = this.committedCanvas.width;
+            const oldHeight = this.committedCanvas.height;
+            
+            this.committedCanvas.width = this.totalWidth;
+            this.committedCanvas.height = this.totalHeight;
+            
+            // If size changed, redraw all committed drawings
+            if (oldWidth !== this.totalWidth || oldHeight !== this.totalHeight) {
+                this.redrawCommittedDrawings();
+            }
+        }
+
+        this.renderVisibleCanvas();
+    }
 
     addEventListeners() {
-        window.addEventListener('resize', () => this.resizeCanvases());
+        // Virtual canvas update events
+        window.addEventListener('resize', () => this.updateVirtualCanvas());
+        window.addEventListener('scroll', () => this.updateVirtualCanvas());
 
         this.canvas.addEventListener('touchstart', (e) => this.handleStart(e), { passive: false });
         this.canvas.addEventListener('touchmove', (e) => this.handleMove(e), { passive: false });
@@ -216,7 +262,7 @@ class AnnotationApp {
             this.targetContainer.classList.add('annotation-active');
             this.masterAnnotationToggleBtn.textContent = 'NOTE ✏️ (فعال)';
             this.masterAnnotationToggleBtn.classList.add('active');
-            this.toolsPanel.style.display = 'flex'; // This was in original logic for visibility
+            this.toolsPanel.style.display = 'flex';
             if (!this.currentTool) this.selectTool('pen');
         } else {
             this.canvas.style.pointerEvents = 'none';
@@ -224,7 +270,7 @@ class AnnotationApp {
             this.targetContainer.classList.remove('annotation-active');
             this.masterAnnotationToggleBtn.textContent = 'NOTE ✏️ (غیرفعال)';
             this.masterAnnotationToggleBtn.classList.remove('active');
-            this.toolsPanel.style.display = 'none'; // This was in original logic for visibility
+            this.toolsPanel.style.display = 'none';
             this.isDrawing = false;
             this.currentPath = null;
             if (this.animationFrameRequestId !== null) {
@@ -238,15 +284,19 @@ class AnnotationApp {
 
     getEventCoordinates(event) {
         let x, y;
-        const rect = this.canvas.getBoundingClientRect();
         if (event.touches && event.touches.length > 0) {
-            x = event.touches[0].clientX - rect.left;
-            y = event.touches[0].clientY - rect.top;
+            x = event.touches[0].clientX;
+            y = event.touches[0].clientY;
         } else {
-            x = event.clientX - rect.left;
-            y = event.clientY - rect.top;
+            x = event.clientX;
+            y = event.clientY;
         }
-        return { x, y };
+        
+        // Convert viewport coordinates to document coordinates
+        const docX = x + this.scrollOffsetX;
+        const docY = y + this.scrollOffsetY;
+        
+        return { x: docX, y: docY };
     }
 
     handleStart(event) {
@@ -303,7 +353,6 @@ class AnnotationApp {
 
         if (mouseLeftCanvas && !this.isDrawing) return;
 
-
         if (this.isDrawing) {
             this.isDrawing = false;
             if (this.currentPath && this.currentPath.points.length > 0) {
@@ -334,7 +383,6 @@ class AnnotationApp {
         }
     }
 
-
     eraseStrokes() {
         if (!this.currentPath || this.currentPath.points.length === 0) return;
 
@@ -364,42 +412,34 @@ class AnnotationApp {
         }
     }
 
-    resizeCanvases() {
-        const width = this.targetContainer.scrollWidth;
-        const height = this.targetContainer.scrollHeight;
-
-        this.canvas.width = width;
-        this.canvas.height = height;
-        this.canvas.style.width = `${width}px`;
-        this.canvas.style.height = `${height}px`;
-
-        this.committedCanvas.width = width;
-        this.committedCanvas.height = height;
-
-        this.redrawCommittedDrawings();
-        this.renderVisibleCanvas();
-    }
-
     redrawCommittedDrawings() {
         this.committedCtx.clearRect(0, 0, this.committedCanvas.width, this.committedCanvas.height);
         this.drawings.forEach(path => {
-            this._drawSinglePath(path, this.committedCtx);
+            this._drawSinglePath(path, this.committedCtx, false);
         });
     }
 
     renderVisibleCanvas() {
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
+        // Draw the visible portion of the committed canvas
         if (this.committedCanvas.width > 0 && this.committedCanvas.height > 0) {
-            this.ctx.drawImage(this.committedCanvas, 0, 0);
+            this.ctx.drawImage(
+                this.committedCanvas,
+                this.scrollOffsetX, this.scrollOffsetY,
+                this.viewportWidth, this.viewportHeight,
+                0, 0,
+                this.viewportWidth, this.viewportHeight
+            );
         }
 
+        // Draw current path if drawing
         if (this.currentPath && this.isDrawing) {
-            this._drawSinglePath(this.currentPath, this.ctx);
+            this._drawSinglePath(this.currentPath, this.ctx, true);
         }
     }
 
-    _drawSinglePath(path, context) {
+    _drawSinglePath(path, context, isVirtual = false) {
         if (!path || path.points.length === 0) return;
 
         context.beginPath();
@@ -419,9 +459,30 @@ class AnnotationApp {
         }
 
         if (path.points.length > 0) {
-            context.moveTo(path.points[0].x, path.points[0].y);
+            let firstPoint = path.points[0];
+            
+            if (isVirtual) {
+                // Convert document coordinates to viewport coordinates
+                firstPoint = {
+                    x: firstPoint.x - this.scrollOffsetX,
+                    y: firstPoint.y - this.scrollOffsetY
+                };
+            }
+            
+            context.moveTo(firstPoint.x, firstPoint.y);
+            
             for (let i = 1; i < path.points.length; i++) {
-                context.lineTo(path.points[i].x, path.points[i].y);
+                let point = path.points[i];
+                
+                if (isVirtual) {
+                    // Convert document coordinates to viewport coordinates
+                    point = {
+                        x: point.x - this.scrollOffsetX,
+                        y: point.y - this.scrollOffsetY
+                    };
+                }
+                
+                context.lineTo(point.x, point.y);
             }
             context.stroke();
         }
