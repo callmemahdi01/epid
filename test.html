@@ -1,31 +1,113 @@
-<!-- secure-content.html -->
 <!DOCTYPE html>
-<html>
+<html lang="fa">
 <head>
   <meta charset="UTF-8">
-  <title>محتوای ایمن</title>
+  <title>تشخیص اشکال ترسیم‌شده</title>
   <style>
-    /* body {
-      user-select: none;
-    } */
-    @media print {
-      body {
-        display: none !important;
-      }
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      overflow: hidden;
+    }
+    canvas {
+      width: 100vw;
+      height: 100vh;
+      display: block;
+      background: #f9f9f9;
+      touch-action: none;
     }
   </style>
 </head>
 <body>
-  <h2>این محتوا محرمانه است</h2>
-  <p>دسترسی به این صفحه باید از طریق لایه احراز هویت انجام شود.</p>
-  <script>
-    // جلوگیری از راست کلیک و کلیدهای ذخیره یا پرینت
-    document.addEventListener('contextmenu', e => e.preventDefault());
-    document.onkeydown = function(e) {
-      if (e.ctrlKey && (e.key === 'p' || e.key === 's' || e.key === 'u')) {
-        e.preventDefault();
-      }
-    };
-  </script>
+<canvas id="myCanvas" resize></canvas>
+
+<script src="https://unpkg.com/paper"></script>
+<script>
+  // فعال‌سازی Paper.js
+  paper.setup('myCanvas');
+
+  let path = null;
+  let holdTimeout = null;
+
+  const tool = new paper.Tool();
+
+  tool.minDistance = 5;
+
+  tool.onMouseDown = function(event) {
+    if (path) path.remove();
+    path = new paper.Path({
+      segments: [event.point],
+      strokeColor: 'black'
+    });
+
+    holdTimeout = setTimeout(() => {
+      recognizeAndReplaceShape(path);
+    }, 3000);
+  };
+
+  tool.onMouseDrag = function(event) {
+    if (path) {
+      path.add(event.point);
+    }
+  };
+
+  tool.onMouseUp = function(event) {
+    if (path) {
+      path.simplify();
+    }
+    clearTimeout(holdTimeout);
+  };
+
+  function recognizeAndReplaceShape(rawPath) {
+    if (!rawPath || rawPath.segments.length < 5) return;
+
+    const bounds = rawPath.bounds;
+    const width = bounds.width;
+    const height = bounds.height;
+    const center = bounds.center;
+    const closed = rawPath.closed || rawPath.firstSegment.point.getDistance(rawPath.lastSegment.point) < 20;
+
+    rawPath.remove();
+
+    if (!closed) return;
+
+    const circularity = calcCircularity(rawPath);
+    const aspectRatio = width / height;
+
+    if (circularity > 0.8) {
+      // دایره
+      const radius = (width + height) / 4;
+      const circle = new paper.Path.Circle(center, radius);
+      circle.strokeColor = 'green';
+    } else if (aspectRatio > 0.8 && aspectRatio < 1.2) {
+      // مربع
+      const square = new paper.Path.Rectangle(bounds);
+      square.strokeColor = 'blue';
+    } else {
+      // مثلث
+      const triangle = new paper.Path.RegularPolygon(center, 3, Math.min(width, height) / 2);
+      triangle.strokeColor = 'orange';
+    }
+  }
+
+  function calcCircularity(path) {
+    const perimeter = path.length;
+    const area = estimateArea(path);
+    const circularity = (4 * Math.PI * area) / (perimeter * perimeter);
+    return circularity;
+  }
+
+  function estimateArea(path) {
+    const segments = path.segments.map(s => s.point);
+    let total = 0;
+    for (let i = 0; i < segments.length; i++) {
+      const p1 = segments[i];
+      const p2 = segments[(i + 1) % segments.length];
+      total += (p1.x * p2.y - p2.x * p1.y);
+    }
+    return Math.abs(total / 2);
+  }
+</script>
 </body>
 </html>

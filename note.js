@@ -1,5 +1,3 @@
-// annotation-module.js
-
 class AnnotationApp {
     constructor(targetContainerSelector) {
         this.targetContainer = document.querySelector(targetContainerSelector);
@@ -28,13 +26,10 @@ class AnnotationApp {
     }
 
     _initializeProperties() {
-        // Canvas elements
         this.canvas = null;
         this.ctx = null;
         this.committedCanvas = null;
         this.committedCtx = null;
-
-        // Virtual canvas properties
         this.virtualCanvasContainer = null;
         this.viewportWidth = 0;
         this.viewportHeight = 0;
@@ -42,25 +37,20 @@ class AnnotationApp {
         this.scrollOffsetY = 0;
         this.totalWidth = 0;
         this.totalHeight = 0;
-
-        // Drawing state
         this.isDrawing = false;
         this.noteModeActive = false;
         this.currentTool = "pen";
         this.currentPath = null;
         this.drawings = [];
-
-        // Tool settings
         this.penColor = "#000000";
         this.penLineWidth = 1;
         this.highlighterColor = "#FFFF00";
         this.highlighterLineWidth = 20;
         this.highlighterOpacity = 0.4;
         this.eraserWidth = 15;
-
-        // Performance
         this.animationFrameRequestId = null;
         this._boundUpdateVirtualCanvas = this.updateVirtualCanvas.bind(this);
+        this.lastActionWasTwoFingerTap = false;
     }
 
     _initializeStorageKey() {
@@ -106,7 +96,6 @@ class AnnotationApp {
     }
 
     createCanvases() {
-        // Main drawing canvas
         this.canvas = document.createElement("canvas");
         this.canvas.id = "annotationCanvas";
         Object.assign(this.canvas.style, {
@@ -119,7 +108,6 @@ class AnnotationApp {
         this.virtualCanvasContainer.appendChild(this.canvas);
         this.ctx = this.canvas.getContext("2d");
 
-        // Committed drawings canvas
         this.committedCanvas = document.createElement("canvas");
         this.committedCtx = this.committedCanvas.getContext("2d");
     }
@@ -295,13 +283,11 @@ class AnnotationApp {
     }
 
     _resizeCanvases() {
-        // Resize main canvas
         this.canvas.width = this.viewportWidth;
         this.canvas.height = this.viewportHeight;
         this.canvas.style.width = `${this.viewportWidth}px`;
         this.canvas.style.height = `${this.viewportHeight}px`;
 
-        // Resize committed canvas if needed
         if (this.committedCanvas.width !== this.totalWidth || 
             this.committedCanvas.height !== this.totalHeight) {
             this.committedCanvas.width = this.totalWidth;
@@ -311,29 +297,52 @@ class AnnotationApp {
     }
 
     addEventListeners() {
-        // Use bound function for better performance
         window.addEventListener("resize", this._boundUpdateVirtualCanvas);
         window.addEventListener("scroll", this._boundUpdateVirtualCanvas);
-
-        // Touch events
         this._addTouchEventListeners();
-        
-        // Mouse events
         this._addMouseEventListeners();
-        
-        // UI event listeners
         this._addUIEventListeners();
-        
-        // Settings event listeners
         this._addSettingsEventListeners();
     }
 
     _addTouchEventListeners() {
         const touchOptions = { passive: false };
-        this.canvas.addEventListener("touchstart", (e) => this.handleStart(e), touchOptions);
+        this.canvas.addEventListener("touchstart", (e) => this.masterTouchStartHandler(e), touchOptions);
         this.canvas.addEventListener("touchmove", (e) => this.handleMove(e), touchOptions);
-        this.canvas.addEventListener("touchend", () => this.handleEnd());
-        this.canvas.addEventListener("touchcancel", () => this.handleEnd());
+        this.canvas.addEventListener("touchend", (e) => this.masterTouchEndHandler(e));
+        this.canvas.addEventListener("touchcancel", (e) => this.masterTouchEndHandler(e));
+    }
+
+    masterTouchStartHandler(event) {
+        if (this.noteModeActive && event.touches.length === 2) {
+            event.preventDefault();
+            this.undoLastDrawing();
+            this.lastActionWasTwoFingerTap = true;
+            if (this.isDrawing) {
+                this.isDrawing = false; 
+                this.currentPath = null; 
+                this._cancelRenderFrame(); 
+                this.renderVisibleCanvas(); 
+            }
+        } else {
+            this.handleStart(event);
+        }
+    }
+
+    masterTouchEndHandler() {
+        if (this.lastActionWasTwoFingerTap) {
+            this.lastActionWasTwoFingerTap = false;
+        }
+        this.handleEnd();
+    }
+    
+    undoLastDrawing() {
+        if (this.drawings.length > 0) {
+            this.drawings.pop();
+            this.redrawCommittedDrawings();
+            this.renderVisibleCanvas();
+            this.saveDrawings();
+        }
     }
 
     _addMouseEventListeners() {
@@ -419,13 +428,19 @@ class AnnotationApp {
     }
 
     handleStart(event) {
-        if (!this._shouldHandleEvent(event)) return;
+        if (this.lastActionWasTwoFingerTap && event.touches && event.touches.length === 1) {
+            return;
+        }
+
+        if (!this._shouldHandleEvent(event)) {
+            return;
+        }
         
         event.preventDefault();
         this.isDrawing = true;
         const { x, y } = this.getEventCoordinates(event);
-
         this.currentPath = this._createNewPath(x, y);
+        this.lastActionWasTwoFingerTap = false; 
     }
 
     _shouldHandleEvent(event) {
@@ -457,11 +472,13 @@ class AnnotationApp {
                 path.lineWidth = this.eraserWidth;
                 break;
         }
-
         return path;
     }
 
     handleMove(event) {
+        if (this.lastActionWasTwoFingerTap && event.touches && event.touches.length === 1) {
+            return;
+        }
         if (!this.isDrawing || !this._shouldHandleEvent(event)) return;
         
         event.preventDefault();
@@ -501,7 +518,7 @@ class AnnotationApp {
 
         if (this.isDrawing) {
             this._processCompletedPath();
-            this._resetDrawingState();
+            this._resetDrawingState(); 
             this.renderVisibleCanvas();
         }
     }
@@ -583,7 +600,6 @@ class AnnotationApp {
     renderVisibleCanvas() {
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-        // Draw visible portion of committed canvas
         if (this.committedCanvas.width > 0 && this.committedCanvas.height > 0) {
             this.ctx.drawImage(
                 this.committedCanvas,
@@ -594,7 +610,6 @@ class AnnotationApp {
             );
         }
 
-        // Draw current path if drawing
         if (this.currentPath && this.isDrawing) {
             this._drawSinglePath(this.currentPath, this.ctx, true);
         }
@@ -713,12 +728,10 @@ class AnnotationApp {
 
     _normalizeLoadedDrawings() {
         this.drawings.forEach(path => {
-            // Set default opacity if not defined
             if (path.opacity === undefined) {
                 path.opacity = path.tool === "highlighter" ? this.highlighterOpacity : 1.0;
             }
             
-            // Set default line width if not defined
             if (path.lineWidth === undefined) {
                 switch (path.tool) {
                     case "pen":
@@ -735,23 +748,18 @@ class AnnotationApp {
         });
     }
 
-    // Cleanup method for proper disposal
     destroy() {
-        // Remove event listeners
         window.removeEventListener("resize", this._boundUpdateVirtualCanvas);
         window.removeEventListener("scroll", this._boundUpdateVirtualCanvas);
         
-        // Cancel any pending animation frame
         if (this.animationFrameRequestId !== null) {
             cancelAnimationFrame(this.animationFrameRequestId);
         }
         
-        // Remove DOM elements
         if (this.virtualCanvasContainer) {
             this.virtualCanvasContainer.remove();
         }
         
-        // Clear references
         this.targetContainer = null;
         this.canvas = null;
         this.ctx = null;
@@ -760,7 +768,6 @@ class AnnotationApp {
     }
 }
 
-// Load external CSS and fonts
 const localCSS = document.createElement("link");
 localCSS.rel = "stylesheet";
 localCSS.href = "./note.css";
@@ -771,7 +778,6 @@ googleFont.rel = "stylesheet";
 googleFont.href = "https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined";
 document.head.appendChild(googleFont);
 
-// Prevent PDF functionality
 document.addEventListener('contextmenu', event => event.preventDefault());
 document.onkeydown = function(e) {
     if (e.ctrlKey && (e.key === 'p' || e.key === 's')) {
