@@ -3,16 +3,16 @@ class AnnotationApp {
         this.targetContainer = document.querySelector(targetContainerSelector);
         if (!this.targetContainer) {
             console.error(
-                "AnnotationApp: کانتینر هدف برای یادداشت‌برداری یافت نشد:",
+                "AnnotationApp: Target container for annotations not found:",
                 targetContainerSelector
             );
-            return; 
+            return;
         }
         
-        this._ensureRelativePosition(); 
-        this._initializeProperties();   
-        this._initializeStorageKey();   
-        this._initializeIcons();        
+        this._ensureRelativePosition();
+        this._initializeProperties();
+        this._initializeStorageKey();
+        this._initializeIcons();
         
         if (this.targetContainer) {
             this.init();
@@ -26,51 +26,49 @@ class AnnotationApp {
     }
 
     _initializeProperties() {
-        this.PAN_MOVE_THRESHOLD = 15; 
-        this.HIGHLIGHTER_OPACITY = 0.4; 
-
-        this.canvas = null;                     
-        this.ctx = null;                        
-        this.committedCanvas = null;            
-        this.committedCtx = null;               
-        this.virtualCanvasContainer = null;     
-
-        this.viewportWidth = 0;     
-        this.viewportHeight = 0;    
-        this.scrollOffsetX = 0;     
-        this.scrollOffsetY = 0;     
-        this.totalWidth = 0;        
-        this.totalHeight = 0;       
-
-        this.isDrawing = false;             
-        this.noteModeActive = false;        
-        this.currentTool = "pen";           
-        this.currentPath = null;            
-        this.drawings = [];                 
-
+        this.canvas = null;
+        this.ctx = null;
+        this.committedCanvas = null;
+        this.committedCtx = null;
+        this.virtualCanvasContainer = null;
+        this.viewportWidth = 0;
+        this.viewportHeight = 0;
+        this.scrollOffsetX = 0;
+        this.scrollOffsetY = 0;
+        this.totalWidth = 0;
+        this.totalHeight = 0;
+        this.isDrawing = false;
+        this.noteModeActive = false;
+        this.currentTool = "pen";
+        this.currentPath = null;
+        this.drawings = [];
         this.penColor = "#000000";
         this.penLineWidth = 1;
         this.highlighterColor = "#FFFF00";
         this.highlighterLineWidth = 20;
+        this.highlighterOpacity = 0.4;
         this.eraserWidth = 15;
-
-        this.animationFrameRequestId = null;    
-        this._boundUpdateVirtualCanvas = this.updateVirtualCanvas.bind(this); 
-
-        this.isPanning = false;             
-        this.panStartFinger1 = null;        
-        this.panStartFinger2 = null;        
-        this.lastPanMidX = null;            
-        this.lastPanMidY = null;            
-        this.isPotentialTwoFingerTap = false; 
-        this.twoFingerTapProcessed = false;   
-        this.justUndidWithTap = false;      
+        this.animationFrameRequestId = null;
+        this._boundUpdateVirtualCanvas = this.updateVirtualCanvas.bind(this);
+        
+        this.isPanning = false;
+        this.panStartFinger1 = null; 
+        this.panStartFinger2 = null; 
+        this.panInitialScrollX = 0;
+        this.panInitialScrollY = 0;
+        this.panMoveThreshold = 15; // آستانه حرکت برای تشخیص کشیدن از ضربه
+        this.isPotentialTwoFingerTap = false;
+        this.twoFingerTapProcessed = false;
+        this.justUndidWithTap = false; 
+        
+        this.lastPanMidX = null; // برای اسکرول نرم
+        this.lastPanMidY = null; // برای اسکرول نرم
     }
 
     _initializeStorageKey() {
         const baseStorageKey = "pageAnnotations";
         const pageIdentifier = window.location.pathname.replace(
-            /[^a-zA-Z0-9_-]/g, 
+            /[^a-zA-Z0-9_-]/g,
             "_"
         );
         this.storageKey = `${baseStorageKey}_${pageIdentifier}`;
@@ -85,13 +83,13 @@ class AnnotationApp {
     }
 
     init() {
-        this.createVirtualCanvasContainer(); 
-        this.createCanvases();               
-        this.createToolbar();                
-        this.addEventListeners();            
-        this.loadDrawings();                 
-        this.updateVirtualCanvas();          
-        this.selectTool("pen");              
+        this.createVirtualCanvasContainer();
+        this.createCanvases();
+        this.createToolbar();
+        this.addEventListeners();
+        this.loadDrawings();
+        this.updateVirtualCanvas();
+        this.selectTool("pen");
     }
 
     createVirtualCanvasContainer() {
@@ -102,21 +100,21 @@ class AnnotationApp {
             left: "0",
             width: "100vw",
             height: "100vh",
-            pointerEvents: "none", 
-            zIndex: "1000",        
-            overflow: "hidden"     
+            pointerEvents: "none",
+            zIndex: "1000",
+            overflow: "hidden"
         });
         document.body.appendChild(this.virtualCanvasContainer);
     }
 
     createCanvases() {
         this.canvas = document.createElement("canvas");
-        this.canvas.id = "annotationCanvas"; 
+        this.canvas.id = "annotationCanvas";
         Object.assign(this.canvas.style, {
-            position: "absolute", 
+            position: "absolute",
             top: "0",
             left: "0",
-            zIndex: "1000",       
+            zIndex: "1000",
             pointerEvents: "none" 
         });
         this.virtualCanvasContainer.appendChild(this.canvas);
@@ -136,22 +134,22 @@ class AnnotationApp {
     }
 
     createToolbar() {
-        this._createMasterToggleButton(); 
-        this._createToolsPanel();         
-        this._createToolButtons();        
-        this._createSettingsGroups();     
-        this._createClearButton();        
+        this._createMasterToggleButton();
+        this._createToolsPanel();
+        this._createToolButtons();
+        this._createSettingsGroups();
+        this._createClearButton();
         
-        this.targetContainer.appendChild(this.toolsPanel); 
-        this.updateToolSettingsVisibility(); 
+        this.targetContainer.appendChild(this.toolsPanel);
+        this.updateToolSettingsVisibility();
     }
 
     _createMasterToggleButton() {
         this.masterAnnotationToggleBtn = this._createStyledButton(
             "masterAnnotationToggleBtn",
-            "NOTE - فعال/غیرفعال کردن یادداشت‌برداری", 
-            "NOTE ✏️", 
-            "" 
+            "NOTE - enable/disable annotations",
+            "NOTE ✏️",
+            ""
         );
         Object.assign(this.masterAnnotationToggleBtn.style, {
             top: "5px",
@@ -162,18 +160,18 @@ class AnnotationApp {
 
     _createToolsPanel() {
         this.toolsPanel = document.createElement("div");
-        this.toolsPanel.id = "annotationToolsPanel"; 
+        this.toolsPanel.id = "annotationToolsPanel";
         Object.assign(this.toolsPanel.style, {
-            display: "none", 
-            flexDirection: "column", 
-            top: "45px", 
+            display: "none",
+            flexDirection: "column",
+            top: "45px",
             right: "5px"
         });
     }
 
     _createToolButtons() {
         const toolsGroup = document.createElement("div");
-        toolsGroup.className = "toolbar-group"; 
+        toolsGroup.className = "toolbar-group";
 
         this.penBtn = this._createStyledButton("penBtn", "قلم", this.icons.pen);
         this.highlighterBtn = this._createStyledButton("highlighterBtn", "هایلایتر", this.icons.highlighter);
@@ -191,13 +189,12 @@ class AnnotationApp {
     _createPenSettings() {
         const penSettingsGroup = document.createElement("div");
         penSettingsGroup.className = "toolbar-group setting-group";
-        penSettingsGroup.id = "penSettingsGroup"; 
+        penSettingsGroup.id = "penSettingsGroup";
 
         const penColorLabel = document.createElement("label");
         this.penColorPicker = document.createElement("input");
         this.penColorPicker.type = "color";
         this.penColorPicker.value = this.penColor;
-        this.penColorPicker.title = "انتخاب رنگ قلم";
 
         const penWidthLabel = document.createElement("label");
         this.penLineWidthInput = document.createElement("input");
@@ -205,8 +202,7 @@ class AnnotationApp {
             type: "number",
             value: this.penLineWidth,
             min: "1",
-            max: "20",
-            title: "تنظیم ضخامت قلم"
+            max: "20"
         });
 
         penSettingsGroup.append(penColorLabel, this.penColorPicker, penWidthLabel, this.penLineWidthInput);
@@ -222,7 +218,6 @@ class AnnotationApp {
         this.highlighterColorPicker = document.createElement("input");
         this.highlighterColorPicker.type = "color";
         this.highlighterColorPicker.value = this.highlighterColor;
-        this.highlighterColorPicker.title = "انتخاب رنگ هایلایتر";
 
         const highlighterWidthLabel = document.createElement("label");
         this.highlighterLineWidthInput = document.createElement("input");
@@ -230,8 +225,7 @@ class AnnotationApp {
             type: "number",
             value: this.highlighterLineWidth,
             min: "5",
-            max: "50",
-            title: "تنظیم ضخامت هایلایتر"
+            max: "50"
         });
 
         highlighterSettingsGroup.append(highlighterColorLabel, this.highlighterColorPicker, highlighterWidthLabel, this.highlighterLineWidthInput);
@@ -241,11 +235,11 @@ class AnnotationApp {
     _createClearButton() {
         this.clearBtn = this._createStyledButton(
             "clearAnnotationsBtn",
-            "پاک کردن تمام یادداشت‌ها و هایلایت‌ها",
+            "پاک کردن تمام یادداشت‌ها",
             "پاک کردن همه",
-            "" 
+            ""
         );
-        this.clearBtn.id = "clearAnnotationsBtn"; 
+        this.clearBtn.id = "clearAnnotationsBtn";
         this.toolsPanel.appendChild(this.clearBtn);
     }
 
@@ -255,74 +249,68 @@ class AnnotationApp {
 
         if (penSettings) {
             penSettings.style.display = 
-                (this.currentTool === "pen" && this.noteModeActive) ? "flex" : "none";
+                this.currentTool === "pen" && this.noteModeActive ? "flex" : "none";
         }
         if (highlighterSettings) {
             highlighterSettings.style.display = 
-                (this.currentTool === "highlighter" && this.noteModeActive) ? "flex" : "none";
+                this.currentTool === "highlighter" && this.noteModeActive ? "flex" : "none";
         }
     }
 
     updateVirtualCanvas() {
-        const dimensionsChanged = this._calculateAndUpdateDimensions();
+        const hasChanges = this._calculateDimensions();
         
-        if (dimensionsChanged) {
-            this._resizeCanvases(); 
+        if (hasChanges) {
+            this._resizeCanvases();
         }
         
-        this.renderVisibleCanvasRegion(); 
+        this.renderVisibleCanvas();
     }
 
-    _calculateAndUpdateDimensions() {
+    _calculateDimensions() {
         const oldViewportWidth = this.viewportWidth;
         const oldViewportHeight = this.viewportHeight;
         const oldScrollX = this.scrollOffsetX;
         const oldScrollY = this.scrollOffsetY;
-        const oldTotalWidth = this.totalWidth;
-        const oldTotalHeight = this.totalHeight;
 
         this.viewportWidth = window.innerWidth;
         this.viewportHeight = window.innerHeight;
         this.scrollOffsetX = window.pageXOffset || document.documentElement.scrollLeft;
         this.scrollOffsetY = window.pageYOffset || document.documentElement.scrollTop;
-        
         this.totalWidth = Math.max(
             document.body.scrollWidth,
             document.documentElement.scrollWidth,
-            this.targetContainer.scrollWidth 
+            this.targetContainer.scrollWidth
         );
         this.totalHeight = Math.max(
             document.body.scrollHeight,
             document.documentElement.scrollHeight,
-            this.targetContainer.scrollHeight 
+            this.targetContainer.scrollHeight
         );
 
         return oldViewportWidth !== this.viewportWidth || 
                oldViewportHeight !== this.viewportHeight ||
                oldScrollX !== this.scrollOffsetX ||
-               oldScrollY !== this.scrollOffsetY ||
-               oldTotalWidth !== this.totalWidth ||
-               oldTotalHeight !== this.totalHeight;
+               oldScrollY !== this.scrollOffsetY;
     }
 
     _resizeCanvases() {
         this.canvas.width = this.viewportWidth;
         this.canvas.height = this.viewportHeight;
-        this.canvas.style.width = `${this.viewportWidth}px`; 
+        this.canvas.style.width = `${this.viewportWidth}px`;
         this.canvas.style.height = `${this.viewportHeight}px`;
 
         if (this.committedCanvas.width !== this.totalWidth || 
             this.committedCanvas.height !== this.totalHeight) {
             this.committedCanvas.width = this.totalWidth;
             this.committedCanvas.height = this.totalHeight;
-            this.redrawCommittedDrawings(); 
+            this.redrawCommittedDrawings();
         }
     }
 
     addEventListeners() {
         window.addEventListener("resize", this._boundUpdateVirtualCanvas);
         window.addEventListener("scroll", this._boundUpdateVirtualCanvas);
-        
         this._addTouchEventListeners();
         this._addMouseEventListeners();
         this._addUIEventListeners();
@@ -330,32 +318,35 @@ class AnnotationApp {
     }
 
     _addTouchEventListeners() {
-        const touchOptions = { passive: false }; 
+        const touchOptions = { passive: false };
         this.canvas.addEventListener("touchstart", (e) => this._handleTouchStart(e), touchOptions);
         this.canvas.addEventListener("touchmove", (e) => this._handleTouchMove(e), touchOptions);
         this.canvas.addEventListener("touchend", (e) => this._handleTouchEnd(e), touchOptions);
-        this.canvas.addEventListener("touchcancel", (e) => this._handleTouchEnd(e), touchOptions); 
+        this.canvas.addEventListener("touchcancel", (e) => this._handleTouchEnd(e), touchOptions);
     }
 
     _handleTouchStart(event) {
-        if (!this.noteModeActive) return; 
+        if (!this.noteModeActive) return;
 
         if (event.touches.length === 1) {
             this.justUndidWithTap = false; 
             if (!this.isPanning && !this.isPotentialTwoFingerTap) {
-                 this.handleDrawingStart(event);
+                 this.handleStart(event);
             }
         } else if (event.touches.length === 2) {
-            event.preventDefault(); 
+            event.preventDefault();
             this.isDrawing = false; 
-            this.currentPath = null; 
-            this._cancelRenderFrame(); 
-            this.renderVisibleCanvasRegion(); 
+            this.currentPath = null;
+            if (this.animationFrameRequestId !== null) {
+                 cancelAnimationFrame(this.animationFrameRequestId);
+                 this.animationFrameRequestId = null;
+            }
+            this.renderVisibleCanvas(); 
 
-            this.isPotentialTwoFingerTap = true; 
-            this.twoFingerTapProcessed = false;  
-            this.isPanning = false;              
-            this.justUndidWithTap = false;       
+            this.isPotentialTwoFingerTap = true;
+            this.twoFingerTapProcessed = false; // آماده برای پردازش ضربه جدید دو انگشتی
+            this.isPanning = false; 
+            this.justUndidWithTap = false;
 
             const t1 = event.touches[0];
             const t2 = event.touches[1];
@@ -365,10 +356,11 @@ class AnnotationApp {
             this.lastPanMidX = (t1.clientX + t2.clientX) / 2;
             this.lastPanMidY = (t1.clientY + t2.clientY) / 2;
         } else {
+            // اگر تعداد انگشتان بیش از 2 یا کمتر از 1 (در عمل غیرممکن) باشد، وضعیت‌های مربوط به ژست دو انگشتی را ریست کن
             this.isPotentialTwoFingerTap = false;
             this.isPanning = false;
-            if (event.touches.length > 1) { 
-                 this.isDrawing = false; 
+            if (event.touches.length > 1) { // یا اگر از 2 به بیشتر تغییر کند
+                 this.isDrawing = false;
             }
         }
     }
@@ -388,26 +380,27 @@ class AnnotationApp {
                 const initialMidY = (this.panStartFinger1.clientY + this.panStartFinger2.clientY) / 2;
                 const deltaFromStartSq = Math.pow(currentMidX - initialMidX, 2) + Math.pow(currentMidY - initialMidY, 2);
 
-                if (deltaFromStartSq > Math.pow(this.PAN_MOVE_THRESHOLD, 2)) {
+                if (deltaFromStartSq > Math.pow(this.panMoveThreshold, 2)) {
                     this.isPanning = true;
                     this.isPotentialTwoFingerTap = false; 
                     this.isDrawing = false; 
+                    // مهم: lastPanMidX/Y را با موقعیت فعلی به‌روز کن تا اولین scrollBy پایه درستی داشته باشد
                     this.lastPanMidX = currentMidX;
                     this.lastPanMidY = currentMidY;
                 }
             }
 
             if (this.isPanning) {
-                const deltaScrollX = currentMidX - this.lastPanMidX; 
+                const deltaScrollX = currentMidX - this.lastPanMidX;
                 const deltaScrollY = currentMidY - this.lastPanMidY;
 
-                window.scrollBy(-deltaScrollX, -deltaScrollY); 
+                window.scrollBy(-deltaScrollX, -deltaScrollY); // اسکرول نسبی
 
-                this.lastPanMidX = currentMidX;
+                this.lastPanMidX = currentMidX; // برای فریم بعدی به‌روز کن
                 this.lastPanMidY = currentMidY;
             }
         } else if (this.isDrawing && event.touches.length === 1 && !this.isPanning && !this.isPotentialTwoFingerTap) {
-            this.handleDrawingMove(event);
+            this.handleMove(event);
         } else if (event.touches.length !== 2 && (this.isPotentialTwoFingerTap || this.isPanning)) {
             this.isPotentialTwoFingerTap = false;
             this.isPanning = false;
@@ -417,18 +410,23 @@ class AnnotationApp {
     _handleTouchEnd(event) {
         if (!this.noteModeActive) return;
 
+        // مدیریت ضربه دو انگشتی برای بازگشت
         if (this.isPotentialTwoFingerTap && !this.isPanning && !this.twoFingerTapProcessed) {
+            // این یک ضربه بود، نه کشیدن، و هنوز به عنوان بازگشت پردازش نشده است.
+            // این باید زمانی اتفاق بیفتد که ژست به پایان می‌رسد (مثلاً انگشت دوم بلند می‌شود).
             this.undoLastDrawing();
-            this.justUndidWithTap = true;     
-            this.twoFingerTapProcessed = true; 
-            this.isDrawing = false;            
-            this.isPotentialTwoFingerTap = false; 
+            this.justUndidWithTap = true;
+            this.twoFingerTapProcessed = true; // این ضربه خاص را به عنوان پردازش شده علامت بزن
+            this.isDrawing = false; 
+            this.isPotentialTwoFingerTap = false; // ضربه مدیریت شد، ریست کن
         }
         
+        // مدیریت پایان یک رسم تک انگشتی
         if (this.isDrawing && !this.isPanning && !this.isPotentialTwoFingerTap && event.touches.length === 0) {
-             this.handleDrawingEnd(event); 
+             this.handleEnd(event); 
         }
 
+        // ریست کردن وضعیت‌ها زمانی که همه انگشتان برداشته می‌شوند
         if (event.touches.length === 0) {
             this.isPotentialTwoFingerTap = false;
             this.isPanning = false;
@@ -437,8 +435,11 @@ class AnnotationApp {
             this.panStartFinger2 = null;
             this.lastPanMidX = null;
             this.lastPanMidY = null;
+            // twoFingerTapProcessed در _handleTouchStart برای ژست دو انگشتی جدید ریست می‌شود
             this.justUndidWithTap = false;
         } else if (event.touches.length === 1 && (this.isPanning || this.isPotentialTwoFingerTap || this.twoFingerTapProcessed )) {
+            // اگر یک انگشت از ژست دو انگشتی برداشته شود (کشیدن یا ضربه پردازش شده)،
+            // وضعیت‌های مربوط به ژست دو انگشتی را ریست کن.
             this.isPotentialTwoFingerTap = false;
             this.isPanning = false;
         }
@@ -446,19 +447,18 @@ class AnnotationApp {
     
     undoLastDrawing() {
         if (this.drawings.length > 0) {
-            this.drawings.pop(); 
-            this.redrawCommittedDrawings(); 
-            this.renderVisibleCanvasRegion(); 
-            this.saveDrawings(); 
-            console.log("AnnotationApp: آخرین یادداشت بازگردانده شد.");
+            this.drawings.pop();
+            this.redrawCommittedDrawings();
+            this.renderVisibleCanvas();
+            this.saveDrawings();
         }
     }
 
     _addMouseEventListeners() {
-        this.canvas.addEventListener("mousedown", (e) => this.handleDrawingStart(e));
-        this.canvas.addEventListener("mousemove", (e) => this.handleDrawingMove(e));
-        this.canvas.addEventListener("mouseup", (e) => this.handleDrawingEnd(e));
-        this.canvas.addEventListener("mouseleave", (e) => this.handleDrawingEnd(e, true));
+        this.canvas.addEventListener("mousedown", (e) => this.handleStart(e));
+        this.canvas.addEventListener("mousemove", (e) => this.handleMove(e));
+        this.canvas.addEventListener("mouseup", (e) => this.handleEnd(e));
+        this.canvas.addEventListener("mouseleave", (e) => this.handleEnd(e, true));
     }
 
     _addUIEventListeners() {
@@ -466,7 +466,7 @@ class AnnotationApp {
         this.penBtn.addEventListener("click", () => this.selectTool("pen"));
         this.highlighterBtn.addEventListener("click", () => this.selectTool("highlighter"));
         this.eraserBtn.addEventListener("click", () => this.selectTool("eraser"));
-        this.clearBtn.addEventListener("click", () => this.clearAllAnnotations());
+        this.clearBtn.addEventListener("click", () => this.clearAnnotations());
     }
 
     _addSettingsEventListeners() {
@@ -493,39 +493,40 @@ class AnnotationApp {
             this._deactivateAnnotationMode();
         }
         
-        this.updateToolSettingsVisibility(); 
+        this.updateToolSettingsVisibility();
     }
 
     _activateAnnotationMode() {
-        this.canvas.style.pointerEvents = "auto"; 
-        document.body.classList.add("annotation-active"); 
-        this.targetContainer.classList.add("annotation-active"); 
+        this.canvas.style.pointerEvents = "auto";
+        document.body.classList.add("annotation-active");
+        this.targetContainer.classList.add("annotation-active");
         this.masterAnnotationToggleBtn.textContent = "NOTE ✏️ (فعال)";
         this.masterAnnotationToggleBtn.classList.add("active");
-        this.toolsPanel.style.display = "flex"; 
-        if (!this.currentTool) this.selectTool("pen"); 
-        console.log("AnnotationApp: حالت یادداشت‌برداری فعال شد.");
+        this.toolsPanel.style.display = "flex";
+        if (!this.currentTool) this.selectTool("pen");
     }
 
     _deactivateAnnotationMode() {
-        this.canvas.style.pointerEvents = "none"; 
+        this.canvas.style.pointerEvents = "none";
         document.body.classList.remove("annotation-active");
         this.targetContainer.classList.remove("annotation-active");
         this.masterAnnotationToggleBtn.textContent = "NOTE ✏️ (غیرفعال)";
         this.masterAnnotationToggleBtn.classList.remove("active");
-        this.toolsPanel.style.display = "none"; 
-        this._resetDrawingStateAndClearLivePath(); 
-        console.log("AnnotationApp: حالت یادداشت‌برداری غیرفعال شد.");
+        this.toolsPanel.style.display = "none";
+        this._resetDrawingState();
+        this.renderVisibleCanvas();
     }
 
-    _resetDrawingStateAndClearLivePath() {
+    _resetDrawingState() {
         this.isDrawing = false;
         this.currentPath = null;
-        this._cancelRenderFrame();
-        this.renderVisibleCanvasRegion(); 
+        if (this.animationFrameRequestId !== null) {
+            cancelAnimationFrame(this.animationFrameRequestId);
+            this.animationFrameRequestId = null;
+        }
     }
 
-    _getEventCoordinates(event) {
+    getEventCoordinates(event) {
         const clientX = event.touches?.[0]?.clientX ?? event.clientX;
         const clientY = event.touches?.[0]?.clientY ?? event.clientY;
 
@@ -535,30 +536,30 @@ class AnnotationApp {
         };
     }
 
-    handleDrawingStart(event) {
+    handleStart(event) {
         if (this.justUndidWithTap) {
             return; 
         }
         if (this.isPanning || this.isPotentialTwoFingerTap) return;
 
-        if (!this._shouldHandleDrawingEvent(event)) { 
+        if (!this._shouldHandleEvent(event)) { 
             return;
         }
         
-        event.preventDefault(); 
+        event.preventDefault();
         this.isDrawing = true;
-        const { x, y } = this._getEventCoordinates(event);
-        this.currentPath = this._createNewDrawingPath(x, y); 
+        const { x, y } = this.getEventCoordinates(event);
+        this.currentPath = this._createNewPath(x, y);
     }
 
-    _shouldHandleDrawingEvent(event) { 
+    _shouldHandleEvent(event) { 
         return this.noteModeActive && 
-               (!event.touches || event.touches.length === 1) && 
-               !this.isPanning &&  
-               !this.isPotentialTwoFingerTap; 
+               (!event.touches || event.touches.length === 1) &&
+               !this.isPanning && 
+               !this.isPotentialTwoFingerTap;
     }
 
-    _createNewDrawingPath(x, y) {
+    _createNewPath(x, y) {
         const path = { 
             tool: this.currentTool, 
             points: [{ x, y }] 
@@ -569,53 +570,77 @@ class AnnotationApp {
                 Object.assign(path, {
                     color: this.penColor,
                     lineWidth: this.penLineWidth,
-                    opacity: 1.0 
+                    opacity: 1.0
                 });
                 break;
             case "highlighter":
                 Object.assign(path, {
                     color: this.highlighterColor,
                     lineWidth: this.highlighterLineWidth,
-                    opacity: this.HIGHLIGHTER_OPACITY 
+                    opacity: this.highlighterOpacity
                 });
                 break;
             case "eraser":
-                path.lineWidth = this.eraserWidth; 
+                path.lineWidth = this.eraserWidth;
                 break;
         }
         return path;
     }
 
-    handleDrawingMove(event) {
+    handleMove(event) {
         if (!this.isDrawing || this.isPanning || this.isPotentialTwoFingerTap) return; 
         
-        event.preventDefault(); 
-        const { x, y } = this._getEventCoordinates(event);
+        event.preventDefault();
+        const { x, y } = this.getEventCoordinates(event);
 
         if (this.currentPath) {
-            this._updateCurrentDrawingPath(x, y); 
-            this._requestRenderFrameForLivePath(); 
+            this._updateCurrentPath(x, y);
+            this._requestRenderFrame();
         }
     }
 
-    _updateCurrentDrawingPath(x, y) {
+    _updateCurrentPath(x, y) {
         if (this.currentTool === "highlighter") {
             if (this.currentPath.points.length <= 1) {
-                this.currentPath.points.push({ x, y }); 
+                this.currentPath.points.push({ x, y });
             } else {
-                this.currentPath.points[1] = { x, y }; 
+                this.currentPath.points[1] = { x, y };
             }
         } else {
             this.currentPath.points.push({ x, y });
         }
     }
 
-    _requestRenderFrameForLivePath() {
-        if (this.animationFrameRequestId === null) { 
+    _requestRenderFrame() {
+        if (this.animationFrameRequestId === null) {
             this.animationFrameRequestId = requestAnimationFrame(() => {
-                this.renderVisibleCanvasRegion(); 
-                this.animationFrameRequestId = null; 
+                this.renderVisibleCanvas();
+                this.animationFrameRequestId = null;
             });
+        }
+    }
+
+    handleEnd(event, mouseLeftCanvas = false) { 
+        if (this.isPanning || this.isPotentialTwoFingerTap) {
+            if (mouseLeftCanvas) {
+                this.isPanning = false;
+                this.isPotentialTwoFingerTap = false;
+            }
+            if (!this.isDrawing && mouseLeftCanvas) { 
+                 this._resetDrawingState();
+                 this.renderVisibleCanvas();
+            }
+            return;
+        }
+
+        this._cancelRenderFrame();
+
+        if (mouseLeftCanvas && !this.isDrawing) return;
+
+        if (this.isDrawing) {
+            this._processCompletedPath();
+            this._resetDrawingState(); 
+            this.renderVisibleCanvas();
         }
     }
 
@@ -626,198 +651,169 @@ class AnnotationApp {
         }
     }
 
-    handleDrawingEnd(event, mouseLeftCanvas = false) { 
-        if (this.isPanning || this.isPotentialTwoFingerTap) {
-            if (mouseLeftCanvas) { 
-                this.isPanning = false;
-                this.isPotentialTwoFingerTap = false;
-            }
-            if (!this.isDrawing && mouseLeftCanvas) { 
-                 this._resetDrawingStateAndClearLivePath();
-            }
-            return;
-        }
-
-        this._cancelRenderFrame(); 
-
-        if (mouseLeftCanvas && !this.isDrawing) return;
-
-        if (this.isDrawing) {
-            this._processAndCommitCompletedPath(); 
-            this._resetDrawingStateAndClearLivePath(); 
-        }
-    }
-
-    _processAndCommitCompletedPath() {
+    _processCompletedPath() {
         if (!this.currentPath || this.currentPath.points.length === 0) return;
 
         switch (this.currentTool) {
             case "highlighter":
-                this._finalizeHighlighterPath();
-                this.drawings.push(this.currentPath); 
+                this._processHighlighterPath();
                 break;
             case "eraser":
-                this.eraseStrokesUnderCurrentPath(); 
+                this.eraseStrokes();
                 break;
-            default: 
+            default:
                 if (this.currentPath.points.length > 1) {
                     this.drawings.push(this.currentPath);
                 }
                 break;
         }
 
-        this.redrawCommittedDrawings(); 
-        this.saveDrawings(); 
+        this.redrawCommittedDrawings();
+        this.saveDrawings();
     }
 
-    _finalizeHighlighterPath() {
-        if (!this.currentPath || this.currentPath.tool !== "highlighter") return;
-
+    _processHighlighterPath() {
         const startPoint = this.currentPath.points[0];
         const endPoint = this.currentPath.points.length > 1 
             ? this.currentPath.points[1] 
             : startPoint;
 
-        this.currentPath.points = [startPoint, endPoint]; 
+        this.currentPath.points = [startPoint, endPoint];
+        this.drawings.push(this.currentPath);
     }
 
-    eraseStrokesUnderCurrentPath() {
-        if (!this.currentPath || this.currentPath.points.length === 0 || this.currentPath.tool !== "eraser") return;
+    eraseStrokes() {
+        if (!this.currentPath || this.currentPath.points.length === 0) return;
 
-        const drawingsToDelete = new Set(); 
+        const drawingsToDelete = new Set();
 
         for (const eraserPoint of this.currentPath.points) {
             for (const drawing of this.drawings) {
                 if (drawingsToDelete.has(drawing) || drawing.tool === "eraser") continue;
 
-                const collisionThreshold = (drawing.lineWidth / 2) + (this.eraserWidth / 2);
                 const shouldDelete = drawing.points.some(pathPoint => {
                     const distance = Math.sqrt(
                         Math.pow(eraserPoint.x - pathPoint.x, 2) +
                         Math.pow(eraserPoint.y - pathPoint.y, 2)
                     );
-                    return distance < collisionThreshold; 
+                    const collisionThreshold = drawing.lineWidth / 2 + this.eraserWidth / 2;
+                    return distance < collisionThreshold;
                 });
 
                 if (shouldDelete) {
-                    drawingsToDelete.add(drawing); 
+                    drawingsToDelete.add(drawing);
                 }
             }
         }
 
         if (drawingsToDelete.size > 0) {
             this.drawings = this.drawings.filter(drawing => !drawingsToDelete.has(drawing));
-            console.log(`AnnotationApp: ${drawingsToDelete.size} یادداشت پاک شد.`);
         }
     }
 
     redrawCommittedDrawings() {
         this.committedCtx.clearRect(0, 0, this.committedCanvas.width, this.committedCanvas.height);
         this.drawings.forEach(path => {
-            this._drawSinglePathOnContext(path, this.committedCtx, false); 
+            this._drawSinglePath(path, this.committedCtx, false);
         });
     }
 
-    renderVisibleCanvasRegion() {
+    renderVisibleCanvas() {
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
         if (this.committedCanvas.width > 0 && this.committedCanvas.height > 0) {
             this.ctx.drawImage(
                 this.committedCanvas,
-                this.scrollOffsetX, this.scrollOffsetY, 
-                this.viewportWidth, this.viewportHeight, 
-                0, 0, 
-                this.viewportWidth, this.viewportHeight 
+                this.scrollOffsetX, this.scrollOffsetY,
+                this.viewportWidth, this.viewportHeight,
+                0, 0,
+                this.viewportWidth, this.viewportHeight
             );
         }
 
         if (this.currentPath && this.isDrawing) { 
-            this._drawSinglePathOnContext(this.currentPath, this.ctx, true);
+            this._drawSinglePath(this.currentPath, this.ctx, true);
         }
     }
 
-    _drawSinglePathOnContext(path, context, isLivePathOnViewport = false) {
-        if (!path || path.points.length === 0) return; 
+    _drawSinglePath(path, context, isVirtual = false) {
+        if (!path || path.points.length === 0) return;
 
-        this._setupDrawingContextStyle(path, context); 
+        this._setupDrawingContext(path, context);
         
         if (path.tool === "eraser" && !(this.isDrawing && path === this.currentPath)) {
             return;
         }
 
-        this._drawPathPointsOnContext(path, context, isLivePathOnViewport); 
-        context.globalAlpha = 1.0; 
+        this._drawPathPoints(path, context, isVirtual);
+        context.globalAlpha = 1.0;
     }
 
-    _setupDrawingContextStyle(path, context) {
-        context.beginPath(); 
-        context.lineCap = "round";  
-        context.lineJoin = "round"; 
+    _setupDrawingContext(path, context) {
+        context.beginPath();
+        context.lineCap = "round";
+        context.lineJoin = "round";
 
         if (path.tool === "eraser" && this.isDrawing && path === this.currentPath) {
-            context.strokeStyle = "rgba(200, 0, 0, 0.6)"; 
-            context.lineWidth = 2; 
-            context.globalAlpha = 0.6; 
+            context.strokeStyle = "rgba(200, 0, 0, 0.6)";
+            context.lineWidth = 2;
+            context.globalAlpha = 0.6;
         } else if (path.tool !== "eraser") {
             context.strokeStyle = path.color;
             context.lineWidth = path.lineWidth;
-            context.globalAlpha = path.opacity; 
+            context.globalAlpha = path.opacity;
         }
     }
 
-    _drawPathPointsOnContext(path, context, isLivePathOnViewport) {
+    _drawPathPoints(path, context, isVirtual) {
         if (path.points.length === 0) return;
 
-        const firstPoint = this._transformPointIfRequired(path.points[0], isLivePathOnViewport);
+        const firstPoint = this._transformPoint(path.points[0], isVirtual);
         context.moveTo(firstPoint.x, firstPoint.y);
 
         for (let i = 1; i < path.points.length; i++) {
-            const point = this._transformPointIfRequired(path.points[i], isLivePathOnViewport);
+            const point = this._transformPoint(path.points[i], isVirtual);
             context.lineTo(point.x, point.y);
         }
         
-        context.stroke(); 
+        context.stroke();
     }
 
-    _transformPointIfRequired(point, shouldTransform) {
-        if (shouldTransform) { 
+    _transformPoint(point, isVirtual) {
+        if (isVirtual) {
             return {
                 x: point.x - this.scrollOffsetX,
                 y: point.y - this.scrollOffsetY
             };
         }
-        return point; 
+        return point;
     }
 
     selectTool(toolName) {
         this.currentTool = toolName;
-        this.updateActiveToolButtonVisuals(); 
-        this.updateToolSettingsVisibility();  
-        console.log(`AnnotationApp: ابزار "${toolName}" انتخاب شد.`);
+        this.updateActiveToolButtonVisuals();
+        this.updateToolSettingsVisibility();
     }
 
     updateActiveToolButtonVisuals() {
         const buttons = [this.penBtn, this.highlighterBtn, this.eraserBtn];
-        const toolNames = ["pen", "highlighter", "eraser"];
+        const tools = ["pen", "highlighter", "eraser"];
         
         buttons.forEach((button, index) => {
-            if (button) { 
-                button.classList.toggle("active", this.currentTool === toolNames[index]);
+            if (button) {
+                button.classList.toggle("active", this.currentTool === tools[index]);
             }
         });
     }
 
-    clearAllAnnotations() {
-        const confirmed = window.confirm("آیا مطمئن هستید که می‌خواهید تمام یادداشت‌ها و هایلایت‌ها را پاک کنید؟ این عمل قابل بازگشت نیست.");
+    clearAnnotations() {
+        const confirmed = window.confirm("آیا مطمئن هستید که می‌خواهید تمام یادداشت‌ها و هایلایت‌ها را پاک کنید؟");
 
         if (confirmed) {
-            this.drawings = []; 
-            localStorage.removeItem(this.storageKey); 
-            this.redrawCommittedDrawings(); 
-            this.renderVisibleCanvasRegion(); 
-            console.log("AnnotationApp: تمام یادداشت‌ها پاک شدند.");
-        } else {
-            console.log("AnnotationApp: عملیات پاک کردن یادداشت‌ها لغو شد.");
+            this.drawings = [];
+            localStorage.removeItem(this.storageKey);
+            this.redrawCommittedDrawings();
+            this.renderVisibleCanvas();
         }
     }
 
@@ -826,8 +822,8 @@ class AnnotationApp {
             const drawingsToSave = this.drawings.filter(path => path.tool !== "eraser");
             localStorage.setItem(this.storageKey, JSON.stringify(drawingsToSave));
         } catch (error) {
-            console.error("AnnotationApp: خطا در ذخیره‌سازی یادداشت‌ها در localStorage:", error);
-            console.warn("ممکن است حافظه مرورگر پر باشد یا خطای دیگری رخ داده باشد.");
+            console.error("AnnotationApp: Failed to save drawings:", error);
+            console.warn("خطا در ذخیره‌سازی یادداشت‌ها. ممکن است حافظه مرورگر پر باشد.");
         }
     }
 
@@ -837,38 +833,36 @@ class AnnotationApp {
         if (savedData) {
             try {
                 this.drawings = JSON.parse(savedData);
-                this._normalizeLoadedDrawingsProperties(); 
-                console.log(`AnnotationApp: ${this.drawings.length} یادداشت از localStorage بارگذاری شد.`);
+                this._normalizeLoadedDrawings();
             } catch (error) {
-                console.error("AnnotationApp: خطا در پارس کردن یادداشت‌های ذخیره شده از localStorage:", error);
-                this.drawings = []; 
-                localStorage.removeItem(this.storageKey); 
+                console.error("AnnotationApp: Failed to parse drawings from localStorage:", error);
+                this.drawings = [];
+                localStorage.removeItem(this.storageKey);
             }
         } else {
-            this.drawings = []; 
-            console.log("AnnotationApp: هیچ یادداشت ذخیره‌ شده‌ای برای این صفحه یافت نشد.");
+            this.drawings = [];
         }
         
-        this.redrawCommittedDrawings();   
-        this.renderVisibleCanvasRegion(); 
+        this.redrawCommittedDrawings();
+        this.renderVisibleCanvas();
     }
 
-    _normalizeLoadedDrawingsProperties() {
+    _normalizeLoadedDrawings() {
         this.drawings.forEach(path => {
             if (path.opacity === undefined) {
-                path.opacity = path.tool === "highlighter" ? this.HIGHLIGHTER_OPACITY : 1.0;
+                path.opacity = path.tool === "highlighter" ? this.highlighterOpacity : 1.0;
             }
             
             if (path.lineWidth === undefined) {
                 switch (path.tool) {
                     case "pen":
-                        path.lineWidth = this.penLineWidth; 
+                        path.lineWidth = this.penLineWidth;
                         break;
                     case "highlighter":
                         path.lineWidth = this.highlighterLineWidth;
                         break;
                     default: 
-                        path.lineWidth = 1; 
+                        path.lineWidth = this.eraserWidth; 
                         break; 
                 }
             }
@@ -876,23 +870,15 @@ class AnnotationApp {
     }
 
     destroy() {
-        console.log("AnnotationApp: در حال تخریب نمونه...");
         window.removeEventListener("resize", this._boundUpdateVirtualCanvas);
         window.removeEventListener("scroll", this._boundUpdateVirtualCanvas);
         
-        this._cancelRenderFrame();
+        if (this.animationFrameRequestId !== null) {
+            cancelAnimationFrame(this.animationFrameRequestId);
+        }
         
         if (this.virtualCanvasContainer) {
-            this.virtualCanvasContainer.remove(); 
-            this.virtualCanvasContainer = null;
-        }
-        if (this.toolsPanel && this.toolsPanel.parentElement) {
-            this.toolsPanel.remove();
-            this.toolsPanel = null;
-        }
-        if (this.masterAnnotationToggleBtn && this.masterAnnotationToggleBtn.parentElement) {
-            this.masterAnnotationToggleBtn.remove();
-            this.masterAnnotationToggleBtn = null;
+            this.virtualCanvasContainer.remove();
         }
         
         this.targetContainer = null;
@@ -900,9 +886,6 @@ class AnnotationApp {
         this.ctx = null;
         this.committedCanvas = null;
         this.committedCtx = null;
-        this.drawings = [];
-
-        console.log("AnnotationApp: نمونه با موفقیت تخریب شد.");
     }
 }
 
@@ -913,6 +896,12 @@ document.head.appendChild(localCSS);
 
 const googleFont = document.createElement("link");
 googleFont.rel = "stylesheet";
-googleFont.href = "https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200";
+googleFont.href = "https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined";
 document.head.appendChild(googleFont);
 
+document.addEventListener('contextmenu', event => event.preventDefault());
+document.onkeydown = function(e) {
+    if (e.ctrlKey && (e.key === 'p' || e.key === 's')) {
+        e.preventDefault();
+    }
+};
