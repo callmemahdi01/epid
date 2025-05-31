@@ -12,8 +12,6 @@
 body {
     font-family: 'Vazirmatn', sans-serif;
     line-height: 1.8;
-    margin: 0;
-    padding: 0;
     background-color: #f4f7f6; /* Slightly softer than pure f9f9f9 */
     color: #333;
     direction: rtl;
@@ -259,7 +257,7 @@ footer {
 /* --- Mobile Optimizations --- */
 @media (max-width: 768px) {
     .container {
-        width: 94%;
+        width: 95%;
         padding: 20px 15px;
         margin: 15px auto;
     }
