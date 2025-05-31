@@ -681,3 +681,11 @@ const googleFont = document.createElement("link");
 googleFont.rel = "stylesheet";
 googleFont.href = "https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined";
 document.head.appendChild(googleFont);
+
+// prevent PDF
+  document.addEventListener('contextmenu', event => event.preventDefault());
+  document.onkeydown = function(e) {
+    if (e.ctrlKey && (e.key === 'p' || e.key === 's')) {
+      e.preventDefault();
+    }
+  };

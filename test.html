@@ -1,0 +1,31 @@
+<!-- secure-content.html -->
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>محتوای ایمن</title>
+  <style>
+    /* body {
+      user-select: none;
+    } */
+    @media print {
+      body {
+        display: none !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h2>این محتوا محرمانه است</h2>
+  <p>دسترسی به این صفحه باید از طریق لایه احراز هویت انجام شود.</p>
+  <script>
+    // جلوگیری از راست کلیک و کلیدهای ذخیره یا پرینت
+    document.addEventListener('contextmenu', e => e.preventDefault());
+    document.onkeydown = function(e) {
+      if (e.ctrlKey && (e.key === 'p' || e.key === 's' || e.key === 'u')) {
+        e.preventDefault();
+      }
+    };
+  </script>
+</body>
+</html>
