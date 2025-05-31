@@ -50,7 +50,19 @@ class AnnotationApp {
         this.eraserWidth = 15;
         this.animationFrameRequestId = null;
         this._boundUpdateVirtualCanvas = this.updateVirtualCanvas.bind(this);
-        this.lastActionWasTwoFingerTap = false;
+        
+        this.isPanning = false;
+        this.panStartFinger1 = null; 
+        this.panStartFinger2 = null; 
+        this.panInitialScrollX = 0;
+        this.panInitialScrollY = 0;
+        this.panMoveThreshold = 15; // آستانه حرکت برای تشخیص کشیدن از ضربه
+        this.isPotentialTwoFingerTap = false;
+        this.twoFingerTapProcessed = false;
+        this.justUndidWithTap = false; 
+        
+        this.lastPanMidX = null; // برای اسکرول نرم
+        this.lastPanMidY = null; // برای اسکرول نرم
     }
 
     _initializeStorageKey() {
@@ -103,7 +115,7 @@ class AnnotationApp {
             top: "0",
             left: "0",
             zIndex: "1000",
-            pointerEvents: "none"
+            pointerEvents: "none" 
         });
         this.virtualCanvasContainer.appendChild(this.canvas);
         this.ctx = this.canvas.getContext("2d");
@@ -307,33 +319,130 @@ class AnnotationApp {
 
     _addTouchEventListeners() {
         const touchOptions = { passive: false };
-        this.canvas.addEventListener("touchstart", (e) => this.masterTouchStartHandler(e), touchOptions);
-        this.canvas.addEventListener("touchmove", (e) => this.handleMove(e), touchOptions);
-        this.canvas.addEventListener("touchend", (e) => this.masterTouchEndHandler(e));
-        this.canvas.addEventListener("touchcancel", (e) => this.masterTouchEndHandler(e));
+        this.canvas.addEventListener("touchstart", (e) => this._handleTouchStart(e), touchOptions);
+        this.canvas.addEventListener("touchmove", (e) => this._handleTouchMove(e), touchOptions);
+        this.canvas.addEventListener("touchend", (e) => this._handleTouchEnd(e), touchOptions);
+        this.canvas.addEventListener("touchcancel", (e) => this._handleTouchEnd(e), touchOptions);
     }
 
-    masterTouchStartHandler(event) {
-        if (this.noteModeActive && event.touches.length === 2) {
-            event.preventDefault();
-            this.undoLastDrawing();
-            this.lastActionWasTwoFingerTap = true;
-            if (this.isDrawing) {
-                this.isDrawing = false; 
-                this.currentPath = null; 
-                this._cancelRenderFrame(); 
-                this.renderVisibleCanvas(); 
+    _handleTouchStart(event) {
+        if (!this.noteModeActive) return;
+
+        if (event.touches.length === 1) {
+            this.justUndidWithTap = false; 
+            if (!this.isPanning && !this.isPotentialTwoFingerTap) {
+                 this.handleStart(event);
             }
+        } else if (event.touches.length === 2) {
+            event.preventDefault();
+            this.isDrawing = false; 
+            this.currentPath = null;
+            if (this.animationFrameRequestId !== null) {
+                 cancelAnimationFrame(this.animationFrameRequestId);
+                 this.animationFrameRequestId = null;
+            }
+            this.renderVisibleCanvas(); 
+
+            this.isPotentialTwoFingerTap = true;
+            this.twoFingerTapProcessed = false; // آماده برای پردازش ضربه جدید دو انگشتی
+            this.isPanning = false; 
+            this.justUndidWithTap = false;
+
+            const t1 = event.touches[0];
+            const t2 = event.touches[1];
+            this.panStartFinger1 = { clientX: t1.clientX, clientY: t1.clientY };
+            this.panStartFinger2 = { clientX: t2.clientX, clientY: t2.clientY };
+            
+            this.lastPanMidX = (t1.clientX + t2.clientX) / 2;
+            this.lastPanMidY = (t1.clientY + t2.clientY) / 2;
         } else {
-            this.handleStart(event);
+            // اگر تعداد انگشتان بیش از 2 یا کمتر از 1 (در عمل غیرممکن) باشد، وضعیت‌های مربوط به ژست دو انگشتی را ریست کن
+            this.isPotentialTwoFingerTap = false;
+            this.isPanning = false;
+            if (event.touches.length > 1) { // یا اگر از 2 به بیشتر تغییر کند
+                 this.isDrawing = false;
+            }
         }
     }
 
-    masterTouchEndHandler() {
-        if (this.lastActionWasTwoFingerTap) {
-            this.lastActionWasTwoFingerTap = false;
+    _handleTouchMove(event) {
+        if (!this.noteModeActive) return;
+
+        if (event.touches.length === 2 && (this.isPotentialTwoFingerTap || this.isPanning)) {
+            event.preventDefault();
+            const t1 = event.touches[0];
+            const t2 = event.touches[1];
+            const currentMidX = (t1.clientX + t2.clientX) / 2;
+            const currentMidY = (t1.clientY + t2.clientY) / 2;
+
+            if (this.isPotentialTwoFingerTap) {
+                const initialMidX = (this.panStartFinger1.clientX + this.panStartFinger2.clientX) / 2;
+                const initialMidY = (this.panStartFinger1.clientY + this.panStartFinger2.clientY) / 2;
+                const deltaFromStartSq = Math.pow(currentMidX - initialMidX, 2) + Math.pow(currentMidY - initialMidY, 2);
+
+                if (deltaFromStartSq > Math.pow(this.panMoveThreshold, 2)) {
+                    this.isPanning = true;
+                    this.isPotentialTwoFingerTap = false; 
+                    this.isDrawing = false; 
+                    // مهم: lastPanMidX/Y را با موقعیت فعلی به‌روز کن تا اولین scrollBy پایه درستی داشته باشد
+                    this.lastPanMidX = currentMidX;
+                    this.lastPanMidY = currentMidY;
+                }
+            }
+
+            if (this.isPanning) {
+                const deltaScrollX = currentMidX - this.lastPanMidX;
+                const deltaScrollY = currentMidY - this.lastPanMidY;
+
+                window.scrollBy(-deltaScrollX, -deltaScrollY); // اسکرول نسبی
+
+                this.lastPanMidX = currentMidX; // برای فریم بعدی به‌روز کن
+                this.lastPanMidY = currentMidY;
+            }
+        } else if (this.isDrawing && event.touches.length === 1 && !this.isPanning && !this.isPotentialTwoFingerTap) {
+            this.handleMove(event);
+        } else if (event.touches.length !== 2 && (this.isPotentialTwoFingerTap || this.isPanning)) {
+            this.isPotentialTwoFingerTap = false;
+            this.isPanning = false;
         }
-        this.handleEnd();
+    }
+
+    _handleTouchEnd(event) {
+        if (!this.noteModeActive) return;
+
+        // مدیریت ضربه دو انگشتی برای بازگشت
+        if (this.isPotentialTwoFingerTap && !this.isPanning && !this.twoFingerTapProcessed) {
+            // این یک ضربه بود، نه کشیدن، و هنوز به عنوان بازگشت پردازش نشده است.
+            // این باید زمانی اتفاق بیفتد که ژست به پایان می‌رسد (مثلاً انگشت دوم بلند می‌شود).
+            this.undoLastDrawing();
+            this.justUndidWithTap = true;
+            this.twoFingerTapProcessed = true; // این ضربه خاص را به عنوان پردازش شده علامت بزن
+            this.isDrawing = false; 
+            this.isPotentialTwoFingerTap = false; // ضربه مدیریت شد، ریست کن
+        }
+        
+        // مدیریت پایان یک رسم تک انگشتی
+        if (this.isDrawing && !this.isPanning && !this.isPotentialTwoFingerTap && event.touches.length === 0) {
+             this.handleEnd(event); 
+        }
+
+        // ریست کردن وضعیت‌ها زمانی که همه انگشتان برداشته می‌شوند
+        if (event.touches.length === 0) {
+            this.isPotentialTwoFingerTap = false;
+            this.isPanning = false;
+            this.isDrawing = false; 
+            this.panStartFinger1 = null;
+            this.panStartFinger2 = null;
+            this.lastPanMidX = null;
+            this.lastPanMidY = null;
+            // twoFingerTapProcessed در _handleTouchStart برای ژست دو انگشتی جدید ریست می‌شود
+            this.justUndidWithTap = false;
+        } else if (event.touches.length === 1 && (this.isPanning || this.isPotentialTwoFingerTap || this.twoFingerTapProcessed )) {
+            // اگر یک انگشت از ژست دو انگشتی برداشته شود (کشیدن یا ضربه پردازش شده)،
+            // وضعیت‌های مربوط به ژست دو انگشتی را ریست کن.
+            this.isPotentialTwoFingerTap = false;
+            this.isPanning = false;
+        }
     }
     
     undoLastDrawing() {
@@ -348,8 +457,8 @@ class AnnotationApp {
     _addMouseEventListeners() {
         this.canvas.addEventListener("mousedown", (e) => this.handleStart(e));
         this.canvas.addEventListener("mousemove", (e) => this.handleMove(e));
-        this.canvas.addEventListener("mouseup", () => this.handleEnd());
-        this.canvas.addEventListener("mouseleave", () => this.handleEnd(true));
+        this.canvas.addEventListener("mouseup", (e) => this.handleEnd(e));
+        this.canvas.addEventListener("mouseleave", (e) => this.handleEnd(e, true));
     }
 
     _addUIEventListeners() {
@@ -428,11 +537,12 @@ class AnnotationApp {
     }
 
     handleStart(event) {
-        if (this.lastActionWasTwoFingerTap && event.touches && event.touches.length === 1) {
-            return;
+        if (this.justUndidWithTap) {
+            return; 
         }
+        if (this.isPanning || this.isPotentialTwoFingerTap) return;
 
-        if (!this._shouldHandleEvent(event)) {
+        if (!this._shouldHandleEvent(event)) { 
             return;
         }
         
@@ -440,11 +550,13 @@ class AnnotationApp {
         this.isDrawing = true;
         const { x, y } = this.getEventCoordinates(event);
         this.currentPath = this._createNewPath(x, y);
-        this.lastActionWasTwoFingerTap = false; 
     }
 
-    _shouldHandleEvent(event) {
-        return this.noteModeActive && (!event.touches || event.touches.length === 1);
+    _shouldHandleEvent(event) { 
+        return this.noteModeActive && 
+               (!event.touches || event.touches.length === 1) &&
+               !this.isPanning && 
+               !this.isPotentialTwoFingerTap;
     }
 
     _createNewPath(x, y) {
@@ -476,10 +588,7 @@ class AnnotationApp {
     }
 
     handleMove(event) {
-        if (this.lastActionWasTwoFingerTap && event.touches && event.touches.length === 1) {
-            return;
-        }
-        if (!this.isDrawing || !this._shouldHandleEvent(event)) return;
+        if (!this.isDrawing || this.isPanning || this.isPotentialTwoFingerTap) return; 
         
         event.preventDefault();
         const { x, y } = this.getEventCoordinates(event);
@@ -511,7 +620,19 @@ class AnnotationApp {
         }
     }
 
-    handleEnd(mouseLeftCanvas = false) {
+    handleEnd(event, mouseLeftCanvas = false) { 
+        if (this.isPanning || this.isPotentialTwoFingerTap) {
+            if (mouseLeftCanvas) {
+                this.isPanning = false;
+                this.isPotentialTwoFingerTap = false;
+            }
+            if (!this.isDrawing && mouseLeftCanvas) { 
+                 this._resetDrawingState();
+                 this.renderVisibleCanvas();
+            }
+            return;
+        }
+
         this._cancelRenderFrame();
 
         if (mouseLeftCanvas && !this.isDrawing) return;
@@ -610,7 +731,7 @@ class AnnotationApp {
             );
         }
 
-        if (this.currentPath && this.isDrawing) {
+        if (this.currentPath && this.isDrawing) { 
             this._drawSinglePath(this.currentPath, this.ctx, true);
         }
     }
@@ -686,8 +807,8 @@ class AnnotationApp {
     }
 
     clearAnnotations() {
-        const confirmed = confirm("آیا مطمئن هستید که می‌خواهید تمام یادداشت‌ها و هایلایت‌ها را پاک کنید؟");
-        
+        const confirmed = window.confirm("آیا مطمئن هستید که می‌خواهید تمام یادداشت‌ها و هایلایت‌ها را پاک کنید؟");
+
         if (confirmed) {
             this.drawings = [];
             localStorage.removeItem(this.storageKey);
@@ -702,7 +823,7 @@ class AnnotationApp {
             localStorage.setItem(this.storageKey, JSON.stringify(drawingsToSave));
         } catch (error) {
             console.error("AnnotationApp: Failed to save drawings:", error);
-            alert("خطا در ذخیره‌سازی یادداشت‌ها. ممکن است حافظه مرورگر پر باشد.");
+            console.warn("خطا در ذخیره‌سازی یادداشت‌ها. ممکن است حافظه مرورگر پر باشد.");
         }
     }
 
@@ -740,9 +861,9 @@ class AnnotationApp {
                     case "highlighter":
                         path.lineWidth = this.highlighterLineWidth;
                         break;
-                    default:
-                        path.lineWidth = this.eraserWidth;
-                        break;
+                    default: 
+                        path.lineWidth = this.eraserWidth; 
+                        break; 
                 }
             }
         });
@@ -770,7 +891,7 @@ class AnnotationApp {
 
 const localCSS = document.createElement("link");
 localCSS.rel = "stylesheet";
-localCSS.href = "./note.css";
+localCSS.href = "./note.css"; 
 document.head.appendChild(localCSS);
 
 const googleFont = document.createElement("link");
